@@ -9,6 +9,7 @@ export function createOverlayState(): OverlayState {
     currentImageMimeType: null,
     settingsMinHeight: 354,
     opencodeModelCache: { key: "", models: [] },
+    openaiModelCache: { key: "", models: [] },
     resizeCornerVertical: "top",
     resizeCornerHorizontal: "left",
     resizeAnchorX: 0,

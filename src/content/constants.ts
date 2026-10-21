@@ -1,3 +1,5 @@
+import { OPENAI_DEFAULT_MODELS } from "../shared/openai";
+
 export {
   OPENCODE_DEFAULT_URL,
   OPENCODE_V2_DEFAULT_URL,
@@ -18,14 +20,7 @@ const GEMINI_MODELS = [
 export const PROVIDER_MODELS = {
   aistudio: GEMINI_MODELS,
   vertex: GEMINI_MODELS,
-  openai: [
-    { value: "gpt-5.2", label: "GPT-5.2 (latest)" },
-    { value: "gpt-5.2-pro", label: "GPT-5.2 Pro" },
-    { value: "gpt-5-mini", label: "GPT-5 Mini" },
-    { value: "gpt-5-nano", label: "GPT-5 Nano" },
-    { value: "gpt-4.1", label: "GPT-4.1" },
-    { value: "gpt-4o", label: "GPT-4o" }
-  ],
+  openai: OPENAI_DEFAULT_MODELS,
   anthropic: [
     { value: "claude-opus-4-6", label: "Claude Opus 4.6 (latest)" },
     { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
@@ -36,7 +31,10 @@ export const PROVIDER_MODELS = {
       value: "google/gemini-3.1-pro-preview",
       label: "Gemini 3.1 Pro Preview"
     },
-    { value: "openai/gpt-5.2", label: "GPT-5.2" },
+    { value: "openai/gpt-6-astra", label: "OpenAI: GPT-6 Astra" },
+    { value: "openai/gpt-6.1-sol", label: "OpenAI: GPT-6.1 Sol" },
+    { value: "openai/o3-mini", label: "OpenAI: o3-mini" },
+    { value: "openai/gpt-4o", label: "OpenAI: GPT-4o" },
     { value: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
     { value: "qwen/qwen3.5-122b-a10b", label: "Qwen 3.5 122B" },

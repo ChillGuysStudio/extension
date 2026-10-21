@@ -1,3 +1,6 @@
+import { filterAndSortOpenAIModels } from "../shared/openai";
+import type { ModelOption } from "../shared/openai";
+
 function getProviderErrorMessage(text, status) {
   if (!text) return `Request failed: ${status}`;
   try {
@@ -106,6 +109,53 @@ export function callOpenAI(apiKey, requestBody) {
     apiKey,
     requestBody
   );
+}
+
+export async function getOpenAIModels(apiKey: string): Promise<{
+  models: ModelOption[];
+  defaultModel: string;
+}> {
+  if (!apiKey) {
+    throw new Error("No OpenAI API key provided");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/models", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(getProviderErrorMessage(text, response.status));
+  }
+
+  const data = (await response.json()) as {
+    data?: Array<{ id?: string; shutdown_date?: number | string }>;
+  };
+  const list = Array.isArray(data?.data) ? data.data : [];
+  const rawIds = list
+    .filter((item) => {
+      if (!item?.id) return false;
+      if (item.shutdown_date) {
+        const shutdownTime =
+          typeof item.shutdown_date === "number"
+            ? item.shutdown_date * 1000
+            : Date.parse(String(item.shutdown_date));
+        if (!isNaN(shutdownTime) && shutdownTime <= Date.now()) {
+          return false;
+        }
+      }
+      return true;
+    })
+    .map((item) => item.id as string);
+
+  const models = filterAndSortOpenAIModels(rawIds);
+  const defaultModel = models[0]?.value || "gpt-6.1-sol";
+
+  return { models, defaultModel };
 }
 
 export function callAnthropic(apiKey, requestBody) {

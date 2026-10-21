@@ -4,7 +4,8 @@ import {
   callGrok,
   callOpenAI,
   callOpenRouter,
-  callVertexAI
+  callVertexAI,
+  getOpenAIModels
 } from "./providers";
 import {
   callOpenCode,
@@ -47,6 +48,19 @@ export function setupRuntimeMessages(): void {
         request.apiVersion === "v2" ? getOpenCodeV2Models : getOpenCodeModels;
 
       return loadModels(request.opencodeConfig)
+        .then((data) => ({
+          success: true,
+          models: data.models,
+          defaultModel: data.defaultModel || ""
+        }))
+        .catch((error: unknown) => ({
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        }));
+    }
+
+    if (request.type === "getOpenAIModels") {
+      return getOpenAIModels(request.apiKey || "")
         .then((data) => ({
           success: true,
           models: data.models,

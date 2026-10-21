@@ -43,6 +43,20 @@ export function createOverlay() {
             </select>
             <label for="ai-model-select" class="mt">Model</label>
             <select id="ai-model-select"></select>
+            <div id="ai-openai-reasoning-group" class="hidden">
+                <label for="ai-reasoning-effort-select" class="mt">Reasoning Effort</label>
+                <select id="ai-reasoning-effort-select">
+                    <option value="default">Default</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="max">Max</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="xhigh">Extra High</option>
+                    <option value="none">None</option>
+                </select>
+                <small class="hint" id="ai-reasoning-effort-hint">Effort allocated to reasoning models (o1, o3, etc.)</small>
+            </div>
             <div id="ai-api-key-group">
                 <label for="ai-sync-key" class="mt">API Key</label>
                 <input type="text" id="ai-sync-key" placeholder="Enter API key..." autocomplete="off" style="-webkit-text-security:disc">

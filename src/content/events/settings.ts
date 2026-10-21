@@ -5,6 +5,7 @@ import {
   isOpenCodeProvider,
   parseOpenCodePairLink
 } from "../../shared/opencode";
+import { updateReasoningEffortUI } from "../settings";
 
 export function bindSettingsEvents({
   elements,
@@ -21,6 +22,9 @@ export function bindSettingsEvents({
   const modelSelect = getById<HTMLSelectElement>("ai-model-select");
   const apiKeyInput = getById<HTMLInputElement>("ai-sync-key");
   const keepContextInput = getById<HTMLInputElement>("ai-keep-context");
+  const reasoningEffortSelect = document.getElementById(
+    "ai-reasoning-effort-select"
+  ) as HTMLSelectElement | null;
   const opencodePasswordInput = getById<HTMLInputElement>(
     "ai-opencode-password"
   );
@@ -46,11 +50,45 @@ export function bindSettingsEvents({
   });
 
   modelSelect.addEventListener("change", () => {
+    updateReasoningEffortUI(providerSelect.value, modelSelect.value);
     void settings.autoSave();
   });
+
+  if (reasoningEffortSelect) {
+    reasoningEffortSelect.addEventListener("change", () => {
+      updateReasoningEffortUI(providerSelect.value, modelSelect.value);
+      void settings.autoSave();
+    });
+  }
+
+  const checkOpenAIKey = async () => {
+    if (providerSelect.value !== "openai") {
+      return;
+    }
+    state.openaiModelCache = { key: "", models: [] };
+    await settings.autoSave();
+    await settings.updateProviderModels("openai", modelSelect.value);
+  };
+
   apiKeyInput.addEventListener("blur", () => {
-    void settings.autoSave();
+    void (async () => {
+      await settings.autoSave();
+      if (providerSelect.value === "openai") {
+        await checkOpenAIKey();
+      }
+    })();
   });
+
+  apiKeyInput.addEventListener("input", (event) => {
+    const val = getInputEventValue(event).trim();
+    if (
+      providerSelect.value === "openai" &&
+      ((val.startsWith("sk-") && val.length > 20) || val.length >= 40)
+    ) {
+      void checkOpenAIKey();
+    }
+  });
+
   keepContextInput.addEventListener("change", () => {
     void settings.autoSave();
   });

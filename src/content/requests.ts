@@ -5,6 +5,7 @@ import {
   isOpenCodeProvider,
   normalizeOpenCodeUrl
 } from "../shared/opencode";
+import { isReasoningModel, getOpenAITokenLimit } from "../shared/openai";
 
 interface SendToAIOptions {
   text: string;
@@ -36,7 +37,8 @@ export function buildRequestBody(
   keepContext: boolean,
   text: string,
   imageBase64: string | null,
-  imageMimeType: string | null
+  imageMimeType: string | null,
+  reasoningEffort?: string
 ): Record<string, unknown> {
   const instruction =
     "You are a helpful AI assistant. Respond using Markdown formatting where appropriate: use **bold**, *italic*, `inline code`, ```code blocks```, bullet lists, numbered lists, and headers. For short factual answers (a letter, number, or single word) just reply directly without extra markup.";
@@ -97,9 +99,31 @@ export function buildRequestBody(
     messages.push({ role: "user", content: userContent });
 
     const defaultModel =
-      provider === "openai" ? "gpt-5.2" : "google/gemini-3.1-pro-preview";
+      provider === "openai" ? "gpt-6.1-sol" : "google/gemini-3.1-pro-preview";
+    const selectedModel = model || defaultModel;
+
+    if (provider === "openai") {
+      const isReasoning = isReasoningModel(selectedModel);
+      const tokenLimit = getOpenAITokenLimit(selectedModel, reasoningEffort);
+      const payload: Record<string, unknown> = {
+        model: selectedModel,
+        messages,
+        max_completion_tokens: tokenLimit
+      };
+
+      if (!isReasoning) {
+        payload.temperature = 0.1;
+      }
+
+      if (isReasoning && reasoningEffort && reasoningEffort !== "default") {
+        payload.reasoning_effort = reasoningEffort;
+      }
+
+      return payload;
+    }
+
     return {
-      model: model || defaultModel,
+      model: selectedModel,
       messages,
       temperature: 0.1,
       max_tokens: 2048
@@ -253,7 +277,8 @@ export async function sendToAI({
     settings.keepContext,
     text,
     imageBase64,
-    imageMimeType
+    imageMimeType,
+    settings.openaiReasoningEffort
   );
   const apiVersion = getOpenCodeApiVersion(provider);
   const opencodeConfig = {
