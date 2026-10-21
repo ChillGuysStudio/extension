@@ -39,6 +39,7 @@ export function createOverlay() {
                 <option value="openrouter">OpenRouter</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="opencode">OpenCode (local)</option>
+                <option value="opencode-v2">OpenCode v2 (local)</option>
             </select>
             <label for="ai-model-select" class="mt">Model</label>
             <select id="ai-model-select"></select>

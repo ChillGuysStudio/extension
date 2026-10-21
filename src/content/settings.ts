@@ -14,7 +14,12 @@ import type {
   StoredSettings
 } from "./types";
 import { getById } from "./utils";
-import { normalizeOpenCodeUrl } from "../shared/opencode";
+import {
+  getOpenCodeApiVersion,
+  isOpenCodeProvider,
+  normalizeOpenCodeUrl
+} from "../shared/opencode";
+import type { OpenCodeApiVersion } from "../shared/opencode";
 
 export { normalizeOpenCodeUrl } from "../shared/opencode";
 
@@ -101,7 +106,7 @@ export function setModelOptions(
 }
 
 export function updateProviderSettingsUI(provider: string): void {
-  const isOpenCode = provider === "opencode";
+  const isOpenCode = isOpenCodeProvider(provider);
   getById<HTMLDivElement>("ai-api-key-group").classList.toggle(
     "hidden",
     isOpenCode
@@ -113,11 +118,13 @@ export function updateProviderSettingsUI(provider: string): void {
 }
 
 export async function fetchOpenCodeModels(
-  opencodeConfig: OpenCodeConfig
+  opencodeConfig: OpenCodeConfig,
+  apiVersion: OpenCodeApiVersion
 ): Promise<OpenCodeModelsResponse> {
   const response = (await browser.runtime.sendMessage({
     type: "getOpenCodeModels",
-    opencodeConfig
+    opencodeConfig,
+    apiVersion
   })) as OpenCodeModelsResponse;
 
   if (!response || !response.success) {
@@ -133,7 +140,13 @@ export async function populateModels(
   settings: Partial<StoredSettings> | undefined,
   modelCache: ModelCache
 ): Promise<void> {
-  if (provider !== "opencode") {
+  if (!isOpenCodeProvider(provider)) {
+    setModelOptions(PROVIDER_MODELS[provider] || [], savedModel);
+    return;
+  }
+
+  const apiVersion = getOpenCodeApiVersion(provider);
+  if (!apiVersion) {
     setModelOptions(PROVIDER_MODELS[provider] || [], savedModel);
     return;
   }
@@ -151,7 +164,7 @@ export async function populateModels(
     baseUrl: normalizeOpenCodeUrl(conf.opencodeUrl),
     password: conf.opencodePassword || ""
   };
-  const cacheKey = `${opencodeConfig.baseUrl}::${opencodeConfig.password}`;
+  const cacheKey = `${apiVersion}::${opencodeConfig.baseUrl}::${opencodeConfig.password}`;
 
   try {
     let serverModels: ModelOption[] = [];
@@ -160,7 +173,7 @@ export async function populateModels(
     if (modelCache.key === cacheKey && modelCache.models.length > 0) {
       serverModels = modelCache.models;
     } else {
-      const data = await fetchOpenCodeModels(opencodeConfig);
+      const data = await fetchOpenCodeModels(opencodeConfig, apiVersion);
       serverModels = Array.isArray(data.models) ? data.models : [];
       defaultModel = data.defaultModel || "";
       modelCache.key = cacheKey;

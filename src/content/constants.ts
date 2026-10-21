@@ -60,7 +60,8 @@ export const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic",
   openrouter: "OpenRouter",
   grok: "Grok",
-  opencode: "OpenCode"
+  opencode: "OpenCode",
+  "opencode-v2": "OpenCode v2"
 };
 
 export function getProviderLabel(provider: string): string {

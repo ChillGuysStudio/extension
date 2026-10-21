@@ -1,12 +1,13 @@
 {
   "name": "clipboard-manager-extension",
   "private": true,
-  "version": "2.1.0",
+  "version": "4.4.0",
   "type": "module",
   "scripts": {
     "build": "vite build --config vite.content.config.ts && vite build --config vite.background.config.ts && vite build --config vite.popup.config.ts",
     "dev": "sh -c 'vite build --watch --config vite.content.config.ts & vite build --watch --config vite.background.config.ts & vite build --watch --config vite.popup.config.ts & wait'",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "lint": "eslint src vite.config.ts vite.*.config.ts eslint.config.mjs",
     "lint:fix": "eslint --fix src vite.config.ts vite.*.config.ts eslint.config.mjs",
     "format": "prettier --write .",

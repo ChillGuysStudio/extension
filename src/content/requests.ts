@@ -1,6 +1,6 @@
 import type { ContextMessage } from "./messages";
 import type { PendingRequest, StoredSettings } from "./types";
-import { normalizeOpenCodeUrl } from "../shared/opencode";
+import { isOpenCodeProvider, normalizeOpenCodeUrl } from "../shared/opencode";
 
 interface SendToAIOptions {
   text: string;
@@ -196,6 +196,35 @@ export function buildRequestBody(
     return body;
   }
 
+  if (provider === "opencode-v2") {
+    const files: Array<Record<string, unknown>> = [];
+    if (imageBase64 && imageMimeType) {
+      files.push({
+        uri: `data:${imageMimeType};base64,${imageBase64}`,
+        name: imageFilenameForMime(imageMimeType)
+      });
+    }
+
+    const body: Record<string, unknown> = {
+      system: instruction,
+      text: userText
+    };
+
+    if (files.length > 0) {
+      body.files = files;
+    }
+
+    if (model && model.includes("/")) {
+      const splitIndex = model.indexOf("/");
+      body.model = {
+        providerID: model.slice(0, splitIndex),
+        id: model.slice(splitIndex + 1)
+      };
+    }
+
+    return body;
+  }
+
   return {};
 }
 
@@ -209,7 +238,7 @@ export async function sendToAI({
   pendingRequests
 }: SendToAIOptions): Promise<string> {
   const { key: apiKey, provider, model } = settings;
-  if (provider !== "opencode" && !apiKey) {
+  if (!isOpenCodeProvider(provider) && !apiKey) {
     throw new Error("API key not configured. Click ⚙️ to set up.");
   }
 

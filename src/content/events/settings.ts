@@ -1,5 +1,6 @@
 import type { EventBindingsOptions } from "./types";
 import { getById, getInputEventValue, queryRequired } from "../utils";
+import { isOpenCodeProvider } from "../../shared/opencode";
 
 export function bindSettingsEvents({
   elements,
@@ -57,9 +58,9 @@ export function bindSettingsEvents({
     };
     state.opencodeModelCache = { key: "", models: [] };
     await settings.autoSave();
-    if (providerSelect.value === "opencode") {
+    if (isOpenCodeProvider(providerSelect.value)) {
       await settings.updateProviderModels(
-        "opencode",
+        providerSelect.value,
         modelSelect.value,
         nextSettings
       );

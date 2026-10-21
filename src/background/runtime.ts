@@ -11,6 +11,11 @@ import {
   getOpenCodeModels,
   restartOpenCodeSession
 } from "./opencode";
+import {
+  callOpenCodeV2,
+  getOpenCodeV2Models,
+  restartOpenCodeV2Session
+} from "./opencode-v2";
 
 interface RuntimeRequest {
   type: string;
@@ -18,6 +23,7 @@ interface RuntimeRequest {
   requestBody?: Record<string, unknown> & { parts?: unknown[] };
   provider?: string;
   opencodeConfig?: { baseUrl?: string; password?: string };
+  apiVersion?: string;
   pageKey?: string;
   requestId?: string;
   keepContext?: boolean;
@@ -35,7 +41,10 @@ export function setupRuntimeMessages(): void {
     }
 
     if (request.type === "getOpenCodeModels") {
-      return getOpenCodeModels(request.opencodeConfig)
+      const loadModels =
+        request.apiVersion === "v2" ? getOpenCodeV2Models : getOpenCodeModels;
+
+      return loadModels(request.opencodeConfig)
         .then((data) => ({
           success: true,
           models: data.models,
@@ -48,7 +57,10 @@ export function setupRuntimeMessages(): void {
     }
 
     if (request.type === "restartOpenCodeSession") {
-      return restartOpenCodeSession(request.pageKey)
+      return Promise.all([
+        restartOpenCodeSession(request.pageKey),
+        restartOpenCodeV2Session(request.pageKey)
+      ])
         .then(() => ({ success: true }))
         .catch((error: unknown) => ({
           success: false,
@@ -95,6 +107,14 @@ export function setupRuntimeMessages(): void {
         break;
       case "opencode":
         apiCall = callOpenCode(
+          request.opencodeConfig,
+          request.requestBody,
+          request.pageKey,
+          request.keepContext !== false
+        );
+        break;
+      case "opencode-v2":
+        apiCall = callOpenCodeV2(
           request.opencodeConfig,
           request.requestBody,
           request.pageKey,
