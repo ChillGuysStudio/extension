@@ -131,7 +131,7 @@ function createOpenCodeV2AuthHeader(password: string): string | null {
 function buildOpenCodeV2CorsHint(baseUrl: string): string {
   const extensionOrigin = `moz-extension://${browser.runtime.id}`;
   let hostname = "127.0.0.1";
-  let port = "4096";
+  let port = "49374";
 
   try {
     const parsed = new URL(baseUrl);
@@ -190,7 +190,7 @@ async function openCodeV2Fetch<T>(
       parseErrorPayload(text) || response.statusText || "Request failed";
     if (response.status === 401) {
       throw new Error(
-        "OpenCode v2 authentication failed. Paste an opencode pair link in the Server URL field, or check the Server Password in settings."
+        "OpenCode v2 authentication failed. Run `opencode pair` and paste the pairing link into the extension settings, or check your token."
       );
     }
     throw new Error(
@@ -220,7 +220,7 @@ export async function pairOpenCodeV2(
   const link = parseOpenCodePairLink(pairUrl);
   if (!link) {
     throw new Error(
-      "Paste the opencode pair link from `opencode pair` in the Server URL field."
+      "Paste the opencode pair link from `opencode pair` into the settings."
     );
   }
 
@@ -598,7 +598,7 @@ export async function callOpenCodeV2(
   pageKey: string | undefined,
   keepContext = true
 ): Promise<string> {
-  const baseUrl = normalizeOpenCodeUrl(opencodeConfig?.baseUrl);
+  const baseUrl = normalizeOpenCodeUrl(opencodeConfig?.baseUrl, "v2");
   const password = opencodeConfig?.password || "";
   const scopedPageKey = pageKey || "default";
 
@@ -680,7 +680,7 @@ export async function restartOpenCodeV2Session(
 export async function getOpenCodeV2Models(
   opencodeConfig: OpenCodeV2Config | undefined
 ): Promise<{ models: OpenCodeV2ModelOption[]; defaultModel: string }> {
-  const baseUrl = normalizeOpenCodeUrl(opencodeConfig?.baseUrl);
+  const baseUrl = normalizeOpenCodeUrl(opencodeConfig?.baseUrl, "v2");
   const password = opencodeConfig?.password || "";
 
   await openCodeV2Fetch(baseUrl, password, "/api/info", { method: "GET" });

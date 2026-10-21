@@ -1,5 +1,6 @@
 import {
   OPENCODE_DEFAULT_URL,
+  OPENCODE_V2_PAIR_PLACEHOLDER,
   PROVIDER_MODELS,
   getProviderLabel
 } from "./constants";
@@ -16,6 +17,7 @@ import type {
 import { getById } from "./utils";
 import {
   getOpenCodeApiVersion,
+  getOpenCodeDefaultUrl,
   isOpenCodeProvider,
   normalizeOpenCodeUrl,
   parseOpenCodePairLink
@@ -118,12 +120,34 @@ export function updateProviderSettingsUI(provider: string): void {
   );
 
   const isV2 = getOpenCodeApiVersion(provider) === "v2";
-  getById<HTMLInputElement>("ai-opencode-url").placeholder = isV2
-    ? "Paste the opencode pair link"
-    : OPENCODE_DEFAULT_URL;
-  getById<HTMLInputElement>("ai-opencode-password").placeholder = isV2
-    ? "Filled automatically from the pair link"
-    : "OPENCODE_SERVER_PASSWORD";
+  const urlLabel = document.getElementById("ai-opencode-url-label");
+  const urlInput = getById<HTMLInputElement>("ai-opencode-url");
+  const passwordGroup = document.getElementById("ai-opencode-password-group");
+  const passwordInput = getById<HTMLInputElement>("ai-opencode-password");
+  const passwordLabel = document.getElementById("ai-opencode-password-label");
+
+  if (isV2) {
+    if (urlLabel) {
+      urlLabel.textContent = "OpenCode Pair Link";
+    }
+    urlInput.placeholder = OPENCODE_V2_PAIR_PLACEHOLDER;
+    if (passwordGroup) {
+      passwordGroup.classList.add("hidden");
+    }
+  } else {
+    if (urlLabel) {
+      urlLabel.textContent = "OpenCode Server URL";
+    }
+    urlInput.placeholder = OPENCODE_DEFAULT_URL;
+    if (passwordGroup) {
+      passwordGroup.classList.remove("hidden");
+    }
+    if (passwordLabel) {
+      passwordLabel.textContent = "Server Password (optional)";
+    }
+    passwordInput.placeholder = "OPENCODE_SERVER_PASSWORD";
+    passwordInput.type = "password";
+  }
 }
 
 interface OpenCodePairResponse {
@@ -199,26 +223,52 @@ export async function populateModels(
 
   const conf = settings || (await getApiKey());
   let opencodeConfig = {
-    baseUrl: normalizeOpenCodeUrl(conf.opencodeUrl),
+    baseUrl: normalizeOpenCodeUrl(conf.opencodeUrl, apiVersion),
     password: conf.opencodePassword || ""
   };
 
   if (apiVersion === "v2") {
-    try {
-      const paired = await pairOpenCodeV2(opencodeConfig.baseUrl);
-      if (paired) {
-        opencodeConfig = paired;
-        getById<HTMLInputElement>("ai-opencode-url").value = paired.baseUrl;
-        getById<HTMLInputElement>("ai-opencode-password").value =
-          paired.password;
-        await browser.storage.local.set({
-          opencodeServerUrl: paired.baseUrl,
-          opencodePassword: paired.password
-        });
+    const rawUrl =
+      getById<HTMLInputElement>("ai-opencode-url")?.value ||
+      conf.opencodeUrl ||
+      "";
+    const rawPass =
+      getById<HTMLInputElement>("ai-opencode-password")?.value ||
+      conf.opencodePassword ||
+      "";
+    const pairCandidate = parseOpenCodePairLink(rawUrl)
+      ? rawUrl
+      : parseOpenCodePairLink(rawPass)
+        ? rawPass
+        : parseOpenCodePairLink(opencodeConfig.baseUrl)
+          ? opencodeConfig.baseUrl
+          : parseOpenCodePairLink(opencodeConfig.password)
+            ? opencodeConfig.password
+            : null;
+
+    if (pairCandidate) {
+      try {
+        status.textContent = "Connecting with OpenCode v2 pair link...";
+        const paired = await pairOpenCodeV2(pairCandidate);
+        if (paired) {
+          opencodeConfig = paired;
+          getById<HTMLInputElement>("ai-opencode-url").value = paired.baseUrl;
+          getById<HTMLInputElement>("ai-opencode-password").value =
+            paired.password;
+          await browser.storage.local.set({
+            opencodeServerUrl: paired.baseUrl,
+            opencodePassword: paired.password
+          });
+        }
+      } catch (error) {
+        setModelOptions([{ value: "", label: "Server default model" }], "");
+        status.textContent = `Pairing failed: ${error instanceof Error ? error.message : String(error)}`;
+        return;
       }
-    } catch (error) {
+    } else if (!opencodeConfig.password) {
       setModelOptions([{ value: "", label: "Server default model" }], "");
-      status.textContent = `Model fetch failed: ${error instanceof Error ? error.message : String(error)}`;
+      status.textContent =
+        "Run `opencode pair` in terminal and paste the link to connect.";
       return;
     }
   }
@@ -264,14 +314,16 @@ export async function getApiKey(): Promise<StoredSettings> {
     "chatHeight"
   ]);
 
+  const provider = (result.apiProvider as string | undefined) || "aistudio";
+  const defaultUrl = getOpenCodeDefaultUrl(provider);
+
   return {
     key: (result.geminiApiKey as string | undefined) || null,
-    provider: (result.apiProvider as string | undefined) || "aistudio",
+    provider,
     model: (result.apiModel as string | undefined) || null,
     keepContext:
       typeof result.aiKeepContext === "boolean" ? result.aiKeepContext : true,
-    opencodeUrl:
-      (result.opencodeServerUrl as string | undefined) || OPENCODE_DEFAULT_URL,
+    opencodeUrl: (result.opencodeServerUrl as string | undefined) || defaultUrl,
     opencodePassword: (result.opencodePassword as string | undefined) || "",
     opacity: typeof result.chatOpacity === "number" ? result.chatOpacity : 0.95,
     btnOpacity:
@@ -293,12 +345,13 @@ export async function saveApiKey(
   chatWidth: number,
   chatHeight: number
 ): Promise<void> {
+  const apiVersion = getOpenCodeApiVersion(provider);
   await browser.storage.local.set({
     geminiApiKey: key,
     apiProvider: provider,
     apiModel: model,
     aiKeepContext: keepContext,
-    opencodeServerUrl: normalizeOpenCodeUrl(opencodeUrl),
+    opencodeServerUrl: normalizeOpenCodeUrl(opencodeUrl, apiVersion),
     opencodePassword: opencodePassword || "",
     chatOpacity: opacity,
     btnOpacity: btnOp,
@@ -338,13 +391,21 @@ export function createSettingsController({
     const buttonOpacity =
       parseInt(getById<HTMLInputElement>("ai-btn-opacity-slider").value, 10) /
       100;
+
+    const isV2 = getOpenCodeApiVersion(provider) === "v2";
+    let passwordValue = getById<HTMLInputElement>("ai-opencode-password").value;
+    if (isV2 && !passwordValue) {
+      const current = await getApiKey();
+      passwordValue = current.opencodePassword || "";
+    }
+
     await saveApiKey(
       key,
       provider,
       model,
       keepContext,
-      normalizeOpenCodeUrl(getById<HTMLInputElement>("ai-opencode-url").value),
-      getById<HTMLInputElement>("ai-opencode-password").value,
+      getById<HTMLInputElement>("ai-opencode-url").value,
+      passwordValue,
       opacity,
       buttonOpacity,
       chatbox.offsetWidth || 320,
@@ -362,17 +423,24 @@ export function createSettingsController({
     if (settings.key) {
       getById<HTMLInputElement>("ai-sync-key").value = settings.key;
     }
-    getById<HTMLInputElement>("ai-opencode-url").value = normalizeOpenCodeUrl(
-      settings.opencodeUrl
-    );
+
+    const resolvedProvider = settings.provider || "aistudio";
+    const defaultUrl = getOpenCodeDefaultUrl(resolvedProvider);
+    const isV2 = getOpenCodeApiVersion(resolvedProvider) === "v2";
+    getById<HTMLInputElement>("ai-opencode-url").value = isV2
+      ? settings.opencodePassword
+        ? settings.opencodeUrl
+        : ""
+      : settings.opencodeUrl && settings.opencodeUrl !== defaultUrl
+        ? settings.opencodeUrl
+        : "";
     getById<HTMLInputElement>("ai-opencode-password").value =
       settings.opencodePassword;
 
-    const resolvedProvider = settings.provider || "aistudio";
     getById<HTMLSelectElement>("ai-provider-select").value = resolvedProvider;
     getById<HTMLInputElement>("ai-keep-context").checked = settings.keepContext;
     await updateProviderModels(resolvedProvider, settings.model, {
-      opencodeUrl: normalizeOpenCodeUrl(settings.opencodeUrl),
+      opencodeUrl: settings.opencodeUrl,
       opencodePassword: settings.opencodePassword
     });
 

@@ -45,21 +45,21 @@ Everything runs locally in the browser. No proxy, no logging, no external data c
 
 ## AI Providers
 
-| Provider             | Auth                        | Models                                                                                                  |
-| -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------- |
-| **Google AI Studio** | API Key                     | Gemini 3.1 Pro Preview, Gemini 3 Flash Preview, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite |
-| **Vertex AI**        | API Key                     | Same Gemini model list via `aiplatform.googleapis.com`                                                  |
-| **OpenAI**           | API Key                     | GPT-5.2, GPT-5.2 Pro, GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4o                                           |
-| **Anthropic**        | API Key                     | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5                                                    |
-| **OpenRouter**       | API Key                     | Gemini, GPT-5.2, Claude, Qwen 3.5 122B, Llama 3.3 70B, DeepSeek R1, and hundreds more                   |
-| **Grok**             | API Key                     | Grok 4 Fast Reasoning, Grok 4, Grok 3, Grok 3 Mini                                                      |
-| **OpenCode**         | URL + optional password     | Models fetched dynamically from a self-hosted v1 server                                                 |
-| **OpenCode v2**      | Pair link or URL + password | Models fetched dynamically from a self-hosted v2 server                                                 |
+| Provider             | Auth                    | Models                                                                                                  |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Google AI Studio** | API Key                 | Gemini 3.1 Pro Preview, Gemini 3 Flash Preview, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite |
+| **Vertex AI**        | API Key                 | Same Gemini model list via `aiplatform.googleapis.com`                                                  |
+| **OpenAI**           | API Key                 | GPT-5.2, GPT-5.2 Pro, GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4o                                           |
+| **Anthropic**        | API Key                 | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5                                                    |
+| **OpenRouter**       | API Key                 | Gemini, GPT-5.2, Claude, Qwen 3.5 122B, Llama 3.3 70B, DeepSeek R1, and hundreds more                   |
+| **Grok**             | API Key                 | Grok 4 Fast Reasoning, Grok 4, Grok 3, Grok 3 Mini                                                      |
+| **OpenCode**         | URL + optional password | Models fetched dynamically from a self-hosted v1 server (`http://127.0.0.1:4096`)                       |
+| **OpenCode v2**      | Pair link or token      | Models fetched dynamically from a self-hosted v2 server (`http://127.0.0.1:49374`)                      |
 
-OpenCode v1 and v2 share the same server URL and password fields. Pick the
-provider that matches the server you run — `opencode serve` from v1 or v2.
-For v2, run `opencode pair` and paste the printed link into the server URL
-field; the extension redeems it and fills the token automatically.
+OpenCode v1 and v2 share the same settings section. Pick the provider that matches your
+running server.
+For v2, run `opencode pair` in your terminal and paste the link into the single Pair Link
+field — the extension redeems it and stores the connection automatically.
 
 API keys are stored in browser local storage only. Nothing is proxied or logged by the extension.
 

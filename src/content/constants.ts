@@ -1,4 +1,8 @@
-export { OPENCODE_DEFAULT_URL } from "../shared/opencode";
+export {
+  OPENCODE_DEFAULT_URL,
+  OPENCODE_V2_DEFAULT_URL,
+  OPENCODE_V2_PAIR_PLACEHOLDER
+} from "../shared/opencode";
 
 const GEMINI_MODELS = [
   {

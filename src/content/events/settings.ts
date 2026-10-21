@@ -1,6 +1,10 @@
 import type { EventBindingsOptions } from "./types";
 import { getById, getInputEventValue, queryRequired } from "../utils";
-import { isOpenCodeProvider } from "../../shared/opencode";
+import {
+  getOpenCodeApiVersion,
+  isOpenCodeProvider,
+  parseOpenCodePairLink
+} from "../../shared/opencode";
 
 export function bindSettingsEvents({
   elements,
@@ -67,11 +71,26 @@ export function bindSettingsEvents({
     }
   };
 
+  const checkPairLink = (value: string) => {
+    if (getOpenCodeApiVersion(providerSelect.value) !== "v2") {
+      return;
+    }
+    if (parseOpenCodePairLink(value)) {
+      void reloadOpenCodeModels();
+    }
+  };
+
   opencodePasswordInput.addEventListener("blur", () => {
     void reloadOpenCodeModels();
   });
   opencodeUrlInput.addEventListener("blur", () => {
     void reloadOpenCodeModels();
+  });
+  opencodePasswordInput.addEventListener("input", (event) => {
+    checkPairLink(getInputEventValue(event));
+  });
+  opencodeUrlInput.addEventListener("input", (event) => {
+    checkPairLink(getInputEventValue(event));
   });
 
   opacitySlider.addEventListener("input", (event) => {

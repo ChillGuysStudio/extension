@@ -1,6 +1,10 @@
 import type { ContextMessage } from "./messages";
 import type { PendingRequest, StoredSettings } from "./types";
-import { isOpenCodeProvider, normalizeOpenCodeUrl } from "../shared/opencode";
+import {
+  getOpenCodeApiVersion,
+  isOpenCodeProvider,
+  normalizeOpenCodeUrl
+} from "../shared/opencode";
 
 interface SendToAIOptions {
   text: string;
@@ -251,8 +255,9 @@ export async function sendToAI({
     imageBase64,
     imageMimeType
   );
+  const apiVersion = getOpenCodeApiVersion(provider);
   const opencodeConfig = {
-    baseUrl: normalizeOpenCodeUrl(settings.opencodeUrl),
+    baseUrl: normalizeOpenCodeUrl(settings.opencodeUrl, apiVersion),
     password: settings.opencodePassword || ""
   };
 

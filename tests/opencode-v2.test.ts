@@ -5,7 +5,13 @@ import {
   pairOpenCodeV2
 } from "../src/background/opencode-v2";
 import { buildRequestBody } from "../src/content/requests";
-import { parseOpenCodePairLink } from "../src/shared/opencode";
+import {
+  OPENCODE_DEFAULT_URL,
+  OPENCODE_V2_DEFAULT_URL,
+  getOpenCodeDefaultUrl,
+  normalizeOpenCodeUrl,
+  parseOpenCodePairLink
+} from "../src/shared/opencode";
 
 const storage: Record<string, unknown> = {};
 
@@ -150,9 +156,54 @@ describe("parseOpenCodePairLink", () => {
     });
   });
 
+  test("extracts pair link from full terminal output or surrounding text", () => {
+    const terminalOutput = `
+  Open a link to connect. Links work once and expire in 5 minutes.
+
+  http://127.0.0.1:49374/auth/connect/3r4l5Y7UB1umkTSI0xlH0A
+
+  Over SSH? Forward the port, then open the link on your machine:
+  ssh -L 49374:127.0.0.1:49374 <host>
+`;
+    expect(parseOpenCodePairLink(terminalOutput)).toEqual({
+      baseUrl: "http://127.0.0.1:49374",
+      code: "3r4l5Y7UB1umkTSI0xlH0A"
+    });
+  });
+
+  test("handles trailing slash", () => {
+    expect(
+      parseOpenCodePairLink(
+        "http://127.0.0.1:49374/auth/connect/3r4l5Y7UB1umkTSI0xlH0A/"
+      )
+    ).toEqual({
+      baseUrl: "http://127.0.0.1:49374",
+      code: "3r4l5Y7UB1umkTSI0xlH0A"
+    });
+  });
+
   test("ignores regular OpenCode server URLs", () => {
     expect(parseOpenCodePairLink("http://127.0.0.1:49374")).toBeNull();
     expect(parseOpenCodePairLink("not a url")).toBeNull();
+  });
+});
+
+describe("normalizeOpenCodeUrl", () => {
+  test("returns default URLs for v1 (4096) and v2 (49374)", () => {
+    expect(OPENCODE_DEFAULT_URL).toBe("http://127.0.0.1:4096");
+    expect(OPENCODE_V2_DEFAULT_URL).toBe("http://127.0.0.1:49374");
+    expect(getOpenCodeDefaultUrl("v1")).toBe("http://127.0.0.1:4096");
+    expect(getOpenCodeDefaultUrl("v2")).toBe("http://127.0.0.1:49374");
+    expect(normalizeOpenCodeUrl("", "v2")).toBe("http://127.0.0.1:49374");
+    expect(normalizeOpenCodeUrl("", "v1")).toBe("http://127.0.0.1:4096");
+  });
+
+  test("extracts base URL when a pair link is provided", () => {
+    expect(
+      normalizeOpenCodeUrl(
+        "http://127.0.0.1:49374/auth/connect/3r4l5Y7UB1umkTSI0xlH0A"
+      )
+    ).toBe("http://127.0.0.1:49374");
   });
 });
 
@@ -307,7 +358,7 @@ describe("callOpenCodeV2", () => {
         true
       )
     ).rejects.toThrow(
-      "OpenCode v2 authentication failed. Paste an opencode pair link in the Server URL field, or check the Server Password in settings."
+      "OpenCode v2 authentication failed. Run `opencode pair` and paste the pairing link into the extension settings, or check your token."
     );
   });
 });
