@@ -5,6 +5,11 @@ export const OPENCODE_V2_PROVIDER = "opencode-v2";
 
 export type OpenCodeApiVersion = "v1" | "v2";
 
+export interface OpenCodePairLink {
+  baseUrl: string;
+  code: string;
+}
+
 export function normalizeOpenCodeUrl(url: string | null | undefined): string {
   const raw = (url || "").trim();
   if (!raw) {
@@ -12,6 +17,34 @@ export function normalizeOpenCodeUrl(url: string | null | undefined): string {
   }
 
   return raw.replace(/\/$/, "");
+}
+
+export function parseOpenCodePairLink(
+  url: string | null | undefined
+): OpenCodePairLink | null {
+  const raw = (url || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+
+    const match = parsed.pathname.match(/^\/auth\/connect\/([^/]+)\/?$/);
+    if (!match) {
+      return null;
+    }
+
+    return {
+      baseUrl: parsed.origin,
+      code: decodeURIComponent(match[1])
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function getOpenCodeApiVersion(

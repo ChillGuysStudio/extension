@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
   callOpenCodeV2,
-  getOpenCodeV2Models
+  getOpenCodeV2Models,
+  pairOpenCodeV2
 } from "../src/background/opencode-v2";
 import { buildRequestBody } from "../src/content/requests";
+import { parseOpenCodePairLink } from "../src/shared/opencode";
 
 const storage: Record<string, unknown> = {};
 
@@ -26,6 +28,7 @@ interface CapturedRequest {
   url: string;
   method: string;
   body: unknown;
+  headers: Headers;
 }
 
 let requests: CapturedRequest[] = [];
@@ -44,9 +47,15 @@ function noContent(): Response {
 
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
-  const path = url.replace("http://127.0.0.1:4096", "");
+  const parsedUrl = new URL(url);
+  const path = `${parsedUrl.pathname}${parsedUrl.search}`;
   const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-  requests.push({ url: path, method: init?.method || "GET", body });
+  requests.push({
+    url: path,
+    method: init?.method || "GET",
+    body,
+    headers: new Headers(init?.headers)
+  });
 
   const handler = routes[path];
   if (!handler) {
@@ -126,6 +135,51 @@ describe("getOpenCodeV2Models", () => {
       { value: "anthropic/claude", label: "Claude (anthropic)" },
       { value: "openai/gpt", label: "GPT (openai)" }
     ]);
+  });
+});
+
+describe("parseOpenCodePairLink", () => {
+  test("extracts the base URL and pairing code", () => {
+    expect(
+      parseOpenCodePairLink(
+        "http://127.0.0.1:49374/auth/connect/3r4l5Y7UB1umkTSI0xlH0A"
+      )
+    ).toEqual({
+      baseUrl: "http://127.0.0.1:49374",
+      code: "3r4l5Y7UB1umkTSI0xlH0A"
+    });
+  });
+
+  test("ignores regular OpenCode server URLs", () => {
+    expect(parseOpenCodePairLink("http://127.0.0.1:49374")).toBeNull();
+    expect(parseOpenCodePairLink("not a url")).toBeNull();
+  });
+});
+
+describe("pairOpenCodeV2", () => {
+  test("exchanges a pair link for a session token", async () => {
+    routes["/auth/connect/code123"] = () => json({ token: "session-token" });
+
+    const result = await pairOpenCodeV2(
+      "http://127.0.0.1:49374/auth/connect/code123"
+    );
+
+    expect(result).toEqual({
+      baseUrl: "http://127.0.0.1:49374",
+      password: "session-token"
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.method).toBe("GET");
+    expect(requests[0]?.headers.get("Accept")).toBe("application/json");
+  });
+
+  test("reports an expired or already-used pair link", async () => {
+    routes["/auth/connect/used"] = () =>
+      json({ message: "Authentication required" }, 401);
+
+    await expect(
+      pairOpenCodeV2("http://127.0.0.1:49374/auth/connect/used")
+    ).rejects.toThrow("pairing link is invalid or expired");
   });
 });
 
@@ -253,7 +307,7 @@ describe("callOpenCodeV2", () => {
         true
       )
     ).rejects.toThrow(
-      "OpenCode v2 authentication failed. Check the Server Password in settings."
+      "OpenCode v2 authentication failed. Paste an opencode pair link in the Server URL field, or check the Server Password in settings."
     );
   });
 });

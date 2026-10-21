@@ -1,4 +1,7 @@
-import { normalizeOpenCodeUrl } from "../shared/opencode";
+import {
+  normalizeOpenCodeUrl,
+  parseOpenCodePairLink
+} from "../shared/opencode";
 
 const OPENCODE_V2_SESSION_MAP_KEY = "opencodeV2SessionsByPage";
 const OPENCODE_V2_POLL_INTERVAL_MS = 1000;
@@ -73,6 +76,10 @@ interface OpenCodeV2ModelOption {
 interface OpenCodeV2RequestModel {
   providerID: string;
   id: string;
+}
+
+interface OpenCodeV2PairingSession {
+  token?: string;
 }
 
 interface OpenCodeV2FileAttachment {
@@ -183,7 +190,7 @@ async function openCodeV2Fetch<T>(
       parseErrorPayload(text) || response.statusText || "Request failed";
     if (response.status === 401) {
       throw new Error(
-        "OpenCode v2 authentication failed. Check the Server Password in settings."
+        "OpenCode v2 authentication failed. Paste an opencode pair link in the Server URL field, or check the Server Password in settings."
       );
     }
     throw new Error(
@@ -205,6 +212,57 @@ async function openCodeV2Fetch<T>(
   } catch {
     throw new Error("OpenCode v2 returned an invalid JSON response.");
   }
+}
+
+export async function pairOpenCodeV2(
+  pairUrl: string
+): Promise<{ baseUrl: string; password: string }> {
+  const link = parseOpenCodePairLink(pairUrl);
+  if (!link) {
+    throw new Error(
+      "Paste the opencode pair link from `opencode pair` in the Server URL field."
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${link.baseUrl}/auth/connect/${encodeURIComponent(link.code)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" }
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Network error";
+    throw new Error(
+      `${buildOpenCodeV2CorsHint(link.baseUrl)}\nDetails: ${message}`
+    );
+  }
+
+  if (!response.ok) {
+    if ([400, 401, 404, 410].includes(response.status)) {
+      throw new Error(
+        "OpenCode v2 pairing link is invalid or expired. Run `opencode pair` again and paste the new link."
+      );
+    }
+
+    const text = await response.text();
+    const message =
+      parseErrorPayload(text) || response.statusText || "Request failed";
+    throw new Error(
+      `OpenCode v2 pairing failed (${response.status}): ${message}`
+    );
+  }
+
+  const data = (await response
+    .json()
+    .catch(() => null)) as OpenCodeV2PairingSession | null;
+  if (!data?.token) {
+    throw new Error("OpenCode v2 did not return a pairing token.");
+  }
+
+  return { baseUrl: link.baseUrl, password: data.token };
 }
 
 async function getOpenCodeV2SessionMap(): Promise<OpenCodeV2SessionMap> {

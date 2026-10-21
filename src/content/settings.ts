@@ -17,7 +17,8 @@ import { getById } from "./utils";
 import {
   getOpenCodeApiVersion,
   isOpenCodeProvider,
-  normalizeOpenCodeUrl
+  normalizeOpenCodeUrl,
+  parseOpenCodePairLink
 } from "../shared/opencode";
 import type { OpenCodeApiVersion } from "../shared/opencode";
 
@@ -115,6 +116,43 @@ export function updateProviderSettingsUI(provider: string): void {
     "hidden",
     !isOpenCode
   );
+
+  const isV2 = getOpenCodeApiVersion(provider) === "v2";
+  getById<HTMLInputElement>("ai-opencode-url").placeholder = isV2
+    ? "Paste the opencode pair link"
+    : OPENCODE_DEFAULT_URL;
+  getById<HTMLInputElement>("ai-opencode-password").placeholder = isV2
+    ? "Filled automatically from the pair link"
+    : "OPENCODE_SERVER_PASSWORD";
+}
+
+interface OpenCodePairResponse {
+  success: boolean;
+  baseUrl?: string;
+  password?: string;
+  error?: string;
+}
+
+async function pairOpenCodeV2(pairUrl: string): Promise<OpenCodeConfig | null> {
+  if (!parseOpenCodePairLink(pairUrl)) {
+    return null;
+  }
+
+  const response = (await browser.runtime.sendMessage({
+    type: "pairOpenCodeV2",
+    opencodePairUrl: pairUrl
+  })) as OpenCodePairResponse;
+
+  if (
+    !response ||
+    !response.success ||
+    !response.baseUrl ||
+    !response.password
+  ) {
+    throw new Error(response?.error || "Failed to pair with OpenCode v2.");
+  }
+
+  return { baseUrl: response.baseUrl, password: response.password };
 }
 
 export async function fetchOpenCodeModels(
@@ -160,10 +198,31 @@ export async function populateModels(
   modelSelect.appendChild(loading);
 
   const conf = settings || (await getApiKey());
-  const opencodeConfig = {
+  let opencodeConfig = {
     baseUrl: normalizeOpenCodeUrl(conf.opencodeUrl),
     password: conf.opencodePassword || ""
   };
+
+  if (apiVersion === "v2") {
+    try {
+      const paired = await pairOpenCodeV2(opencodeConfig.baseUrl);
+      if (paired) {
+        opencodeConfig = paired;
+        getById<HTMLInputElement>("ai-opencode-url").value = paired.baseUrl;
+        getById<HTMLInputElement>("ai-opencode-password").value =
+          paired.password;
+        await browser.storage.local.set({
+          opencodeServerUrl: paired.baseUrl,
+          opencodePassword: paired.password
+        });
+      }
+    } catch (error) {
+      setModelOptions([{ value: "", label: "Server default model" }], "");
+      status.textContent = `Model fetch failed: ${error instanceof Error ? error.message : String(error)}`;
+      return;
+    }
+  }
+
   const cacheKey = `${apiVersion}::${opencodeConfig.baseUrl}::${opencodeConfig.password}`;
 
   try {

@@ -14,6 +14,7 @@ import {
 import {
   callOpenCodeV2,
   getOpenCodeV2Models,
+  pairOpenCodeV2,
   restartOpenCodeV2Session
 } from "./opencode-v2";
 
@@ -23,6 +24,7 @@ interface RuntimeRequest {
   requestBody?: Record<string, unknown> & { parts?: unknown[] };
   provider?: string;
   opencodeConfig?: { baseUrl?: string; password?: string };
+  opencodePairUrl?: string;
   apiVersion?: string;
   pageKey?: string;
   requestId?: string;
@@ -49,6 +51,19 @@ export function setupRuntimeMessages(): void {
           success: true,
           models: data.models,
           defaultModel: data.defaultModel || ""
+        }))
+        .catch((error: unknown) => ({
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        }));
+    }
+
+    if (request.type === "pairOpenCodeV2") {
+      return pairOpenCodeV2(request.opencodePairUrl || "")
+        .then((data) => ({
+          success: true,
+          baseUrl: data.baseUrl,
+          password: data.password
         }))
         .catch((error: unknown) => ({
           success: false,
