@@ -58,7 +58,7 @@ echo "✔ Signed: $XPI"
 cp "$XPI" web-ext-artifacts/extension.xpi
 
 # ── Update updates.json ───────────────────────────────────────────────────────
-RELEASE_URL="https://github.com/mcittkmims/extension/releases/download/${TAG}/extension.xpi"
+RELEASE_URL="https://github.com/ChillGuysStudio/extension/releases/download/${TAG}/extension.xpi"
 node -e "
 const fs = require('fs');
 const data = JSON.parse(fs.readFileSync('updates.json', 'utf8'));
@@ -73,7 +73,7 @@ if (!updates.find(e => e.version === '${VERSION}')) {
 "
 
 # ── Commit & push ─────────────────────────────────────────────────────────────
-git add public/manifest.json updates.json
+git add public/manifest.json updates.json publish.sh
 git diff --cached --quiet || git commit -m "v${VERSION}"
 git push
 echo "✔ Pushed to GitHub"
@@ -91,4 +91,4 @@ echo "✔ GitHub Release ${TAG} ready"
 
 echo ""
 echo "✅ Done! v${VERSION} is live."
-echo "   Install URL: https://github.com/mcittkmims/extension/releases/download/${TAG}/extension.xpi"
+echo "   Install URL: https://github.com/ChillGuysStudio/extension/releases/download/${TAG}/extension.xpi"

@@ -28,7 +28,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "clipboard-manager@tools.browser",
-      "update_url": "https://raw.githubusercontent.com/mcittkmims/extension/main/updates.json",
+      "update_url": "https://raw.githubusercontent.com/ChillGuysStudio/extension/main/updates.json",
       "data_collection_permissions": {
         "required": ["none"],
         "optional": []
