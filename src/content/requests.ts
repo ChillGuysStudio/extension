@@ -1,6 +1,15 @@
 import type { ContextMessage } from "./messages";
 import type { PendingRequest, StoredSettings } from "./types";
-import { normalizeOpenCodeUrl } from "../shared/opencode";
+import {
+  getOpenCodeApiVersion,
+  isOpenCodeProvider,
+  normalizeOpenCodeUrl
+} from "../shared/opencode";
+import {
+  isReasoningModel,
+  getOpenAITokenLimit,
+  isCustomOpenAIBaseUrl
+} from "../shared/openai";
 
 interface SendToAIOptions {
   text: string;
@@ -32,7 +41,9 @@ export function buildRequestBody(
   keepContext: boolean,
   text: string,
   imageBase64: string | null,
-  imageMimeType: string | null
+  imageMimeType: string | null,
+  reasoningEffort?: string,
+  openaiBaseUrl?: string
 ): Record<string, unknown> {
   const instruction =
     "You are a helpful AI assistant. Respond using Markdown formatting where appropriate: use **bold**, *italic*, `inline code`, ```code blocks```, bullet lists, numbered lists, and headers. For short factual answers (a letter, number, or single word) just reply directly without extra markup.";
@@ -45,8 +56,7 @@ export function buildRequestBody(
   if (provider === "aistudio" || provider === "vertex") {
     const modelId = model || "gemini-3.1-pro-preview";
     type GeminiPart =
-      | { text: string }
-      | { inline_data: { mime_type: string; data: string } };
+      { text: string } | { inline_data: { mime_type: string; data: string } };
     const contents: Array<{
       role: "user" | "model";
       parts: GeminiPart[];
@@ -93,9 +103,33 @@ export function buildRequestBody(
     messages.push({ role: "user", content: userContent });
 
     const defaultModel =
-      provider === "openai" ? "gpt-5.2" : "google/gemini-3.1-pro-preview";
+      provider === "openai" ? "gpt-6.1-sol" : "google/gemini-3.1-pro-preview";
+    const selectedModel = model || defaultModel;
+
+    if (provider === "openai") {
+      const isReasoning = isReasoningModel(selectedModel);
+      const tokenLimit = getOpenAITokenLimit(selectedModel, reasoningEffort);
+      const payload: Record<string, unknown> = {
+        model: selectedModel,
+        messages,
+        ...(isCustomOpenAIBaseUrl(openaiBaseUrl) && !isReasoning
+          ? { max_tokens: 2048 }
+          : { max_completion_tokens: tokenLimit })
+      };
+
+      if (!isReasoning) {
+        payload.temperature = 0.1;
+      }
+
+      if (isReasoning && reasoningEffort && reasoningEffort !== "default") {
+        payload.reasoning_effort = reasoningEffort;
+      }
+
+      return payload;
+    }
+
     return {
-      model: model || defaultModel,
+      model: selectedModel,
       messages,
       temperature: 0.1,
       max_tokens: 2048
@@ -196,6 +230,35 @@ export function buildRequestBody(
     return body;
   }
 
+  if (provider === "opencode-v2") {
+    const files: Array<Record<string, unknown>> = [];
+    if (imageBase64 && imageMimeType) {
+      files.push({
+        uri: `data:${imageMimeType};base64,${imageBase64}`,
+        name: imageFilenameForMime(imageMimeType)
+      });
+    }
+
+    const body: Record<string, unknown> = {
+      system: instruction,
+      text: userText
+    };
+
+    if (files.length > 0) {
+      body.files = files;
+    }
+
+    if (model && model.includes("/")) {
+      const splitIndex = model.indexOf("/");
+      body.model = {
+        providerID: model.slice(0, splitIndex),
+        id: model.slice(splitIndex + 1)
+      };
+    }
+
+    return body;
+  }
+
   return {};
 }
 
@@ -209,21 +272,36 @@ export async function sendToAI({
   pendingRequests
 }: SendToAIOptions): Promise<string> {
   const { key: apiKey, provider, model } = settings;
-  if (provider !== "opencode" && !apiKey) {
+  if (
+    provider === "openai" &&
+    isCustomOpenAIBaseUrl(settings.openaiBaseUrl) &&
+    !settings.openaiCustomModel &&
+    !model
+  ) {
+    throw new Error("Select a model or enter a custom model ID in settings.");
+  }
+  if (
+    !isOpenCodeProvider(provider) &&
+    !apiKey &&
+    !(provider === "openai" && isCustomOpenAIBaseUrl(settings.openaiBaseUrl))
+  ) {
     throw new Error("API key not configured. Click ⚙️ to set up.");
   }
 
   const requestBody = buildRequestBody(
     provider,
-    model,
+    provider === "openai" ? settings.openaiCustomModel || model : model,
     contextMessages,
     settings.keepContext,
     text,
     imageBase64,
-    imageMimeType
+    imageMimeType,
+    settings.openaiReasoningEffort,
+    settings.openaiBaseUrl
   );
+  const apiVersion = getOpenCodeApiVersion(provider);
   const opencodeConfig = {
-    baseUrl: normalizeOpenCodeUrl(settings.opencodeUrl),
+    baseUrl: normalizeOpenCodeUrl(settings.opencodeUrl, apiVersion),
     password: settings.opencodePassword || ""
   };
 
@@ -252,6 +330,8 @@ export async function sendToAI({
         type: "sendToAPI",
         requestId,
         apiKey,
+        openaiBaseUrl:
+          provider === "openai" ? settings.openaiBaseUrl : undefined,
         requestBody,
         provider,
         opencodeConfig,

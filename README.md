@@ -4,7 +4,7 @@
 
 <p>A floating AI chat assistant, quiz auto-answerer, and image analyzer.<br>Disguised as a clipboard manager. Hidden behind a 20 px button.</p>
 
-[![Version](https://img.shields.io/badge/version-2.1.0-18181b)](https://github.com/chillguysstudio/extension/releases/latest)
+[![Version](https://img.shields.io/badge/version-4.4.0-18181b)](https://github.com/chillguysstudio/extension/releases/latest)
 [![Firefox](https://img.shields.io/badge/Firefox-Extension-FF7139?logo=firefox-browser&logoColor=white)](https://github.com/chillguysstudio/extension/releases/latest)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
@@ -45,15 +45,33 @@ Everything runs locally in the browser. No proxy, no logging, no external data c
 
 ## AI Providers
 
-| Provider | Auth | Models |
-|---|---|---|
-| **Google AI Studio** | API Key | Gemini 3.1 Pro Preview, Gemini 3 Flash Preview, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite |
-| **Vertex AI** | API Key | Same Gemini model list via `aiplatform.googleapis.com` |
-| **OpenAI** | API Key | GPT-5.2, GPT-5.2 Pro, GPT-5 Mini, GPT-5 Nano, GPT-4.1, GPT-4o |
-| **Anthropic** | API Key | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5 |
-| **OpenRouter** | API Key | Gemini, GPT-5.2, Claude, Qwen 3.5 122B, Llama 3.3 70B, DeepSeek R1, and hundreds more |
-| **Grok** | API Key | Grok 4 Fast Reasoning, Grok 4, Grok 3, Grok 3 Mini |
-| **OpenCode** | URL + optional password | Models fetched dynamically from a self-hosted server |
+| Provider                | Auth                                  | Models                                                                                                  |
+| ----------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Google AI Studio**    | API Key                               | Gemini 3.1 Pro Preview, Gemini 3 Flash Preview, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash-Lite |
+| **Vertex AI**           | API Key                               | Same Gemini model list via `aiplatform.googleapis.com`                                                  |
+| **OpenAI / compatible** | API Key (optional for custom servers) | OpenAI models, or models discovered from a custom OpenAI-compatible API                                 |
+| **Anthropic**           | API Key                               | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5                                                    |
+| **OpenRouter**          | API Key                               | Gemini, GPT-5.2, Claude, Qwen 3.5 122B, Llama 3.3 70B, DeepSeek R1, and hundreds more                   |
+| **Grok**                | API Key                               | Grok 4 Fast Reasoning, Grok 4, Grok 3, Grok 3 Mini                                                      |
+| **OpenCode**            | URL + optional password               | Models fetched dynamically from a self-hosted v1 server (`http://127.0.0.1:4096`)                       |
+| **OpenCode v2**         | Pair link or URL + password/token     | Models fetched dynamically from a self-hosted v2 server (port varies; check `opencode2 service status`) |
+
+OpenCode v1 and v2 share the same settings section. Pick the provider that matches your
+running server.
+For v2, run `opencode2 pair` (or `opencode pair` when v2 is installed as `opencode`)
+and paste the link into **OpenCode Server URL or Pair Link**. The extension redeems
+it and stores the server URL and pairing token automatically. Alternatively, enter
+the server URL and its plain `OPENCODE_SERVER_PASSWORD` in **Server Password or
+Pairing Token**. Use `opencode2 service status` to find the actual server URL;
+do not assume its dynamically assigned port is always 49374.
+
+For an OpenAI-compatible server, select **OpenAI (GPT)** and set **OpenAI-compatible
+API Base URL**, for example `http://localhost:1234/v1`. Include the API prefix
+required by your server; `/models` and `/chat/completions` are appended to it.
+Leave this field empty for the official OpenAI API. Custom servers retain their
+own model IDs (including non-OpenAI models) and may omit authentication. If model
+discovery is unavailable, enter **Custom model ID** manually; it overrides the
+model dropdown. Leave that field empty to use the dropdown again.
 
 API keys are stored in browser local storage only. Nothing is proxied or logged by the extension.
 
@@ -89,11 +107,11 @@ Reads the page HTML directly instead of screenshotting. Detects every interactiv
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Alt+C` | Toggle the floating chat window open / closed |
-| `Alt+Q` | Screenshot the current page and get a quiz answer |
-| `Alt+Shift+Q` | Read the DOM and autofill all quiz inputs |
+| Shortcut      | Action                                            |
+| ------------- | ------------------------------------------------- |
+| `Alt+C`       | Toggle the floating chat window open / closed     |
+| `Alt+Q`       | Screenshot the current page and get a quiz answer |
+| `Alt+Shift+Q` | Read the DOM and autofill all quiz inputs         |
 
 Shortcuts use `Alt` only — no `Ctrl` or `⌘` — to avoid clashing with browser and OS bindings. They fire on `keydown` and are suppressed when focus is inside a text field.
 
@@ -132,7 +150,8 @@ src/
 ├── background/
 │   ├── index.ts          # Background service worker entry
 │   ├── lifecycle.ts      # Install / update lifecycle hooks
-│   ├── opencode.ts       # OpenCode provider relay
+│   ├── opencode.ts       # OpenCode v1 provider relay
+│   ├── opencode-v2.ts    # OpenCode v2 provider relay
 │   ├── providers.ts      # All provider API call implementations
 │   └── runtime.ts        # Message routing to providers
 ├── content/
@@ -183,6 +202,9 @@ bun run dev
 # Type-check without emitting
 bun run typecheck
 
+# Unit tests
+bun test
+
 # Lint
 bun run lint
 bun run lint:fix
@@ -203,11 +225,11 @@ bun run format:check
 
 Three Vite configs produce three separate bundles:
 
-| Config | Output | Purpose |
-|---|---|---|
-| `vite.background.config.ts` | `background.js` | Background service worker |
-| `vite.content.config.ts` | `content.js` | Content script (chat, quiz, AI) |
-| `vite.popup.config.ts` | `popup.js` | Toolbar popup (clipboard manager) |
+| Config                      | Output          | Purpose                           |
+| --------------------------- | --------------- | --------------------------------- |
+| `vite.background.config.ts` | `background.js` | Background service worker         |
+| `vite.content.config.ts`    | `content.js`    | Content script (chat, quiz, AI)   |
+| `vite.popup.config.ts`      | `popup.js`      | Toolbar popup (clipboard manager) |
 
 ---
 

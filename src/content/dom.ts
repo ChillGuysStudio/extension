@@ -39,19 +39,41 @@ export function createOverlay() {
                 <option value="openrouter">OpenRouter</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="opencode">OpenCode (local)</option>
+                <option value="opencode-v2">OpenCode v2 (local)</option>
             </select>
             <label for="ai-model-select" class="mt">Model</label>
             <select id="ai-model-select"></select>
+            <div id="ai-openai-reasoning-group" class="hidden">
+                <label for="ai-openai-base-url" class="mt">OpenAI-compatible API Base URL</label>
+                <input type="url" id="ai-openai-base-url" placeholder="https://api.openai.com/v1">
+                <small class="hint">Include /v1 if required. Leave empty for OpenAI. Local servers may not require an API key.</small>
+                <label for="ai-openai-custom-model" class="mt">Custom model ID (optional)</label>
+                <input type="text" id="ai-openai-custom-model" placeholder="Use a listed model, or enter a model ID">
+                <label for="ai-reasoning-effort-select" class="mt">Reasoning Effort</label>
+                <select id="ai-reasoning-effort-select">
+                    <option value="default">Default</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="max">Max</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="xhigh">Extra High</option>
+                    <option value="none">None</option>
+                </select>
+                <small class="hint" id="ai-reasoning-effort-hint">Effort allocated to reasoning models (o1, o3, etc.)</small>
+            </div>
             <div id="ai-api-key-group">
                 <label for="ai-sync-key" class="mt">API Key</label>
                 <input type="text" id="ai-sync-key" placeholder="Enter API key..." autocomplete="off" style="-webkit-text-security:disc">
                 <small class="hint" id="ai-api-key-hint">Key for the selected AI provider</small>
             </div>
             <div id="ai-opencode-group" class="hidden">
-                <label for="ai-opencode-url" class="mt">OpenCode Server URL</label>
+                <label for="ai-opencode-url" id="ai-opencode-url-label" class="mt">OpenCode Server URL</label>
                 <input type="text" id="ai-opencode-url" placeholder="http://127.0.0.1:4096">
-                <label for="ai-opencode-password" class="mt">Server Password (optional)</label>
-                <input type="password" id="ai-opencode-password" placeholder="OPENCODE_SERVER_PASSWORD" autocomplete="off">
+                <div id="ai-opencode-password-group">
+                    <label for="ai-opencode-password" id="ai-opencode-password-label" class="mt">Server Password (optional)</label>
+                    <input type="password" id="ai-opencode-password" placeholder="OPENCODE_SERVER_PASSWORD" autocomplete="off">
+                </div>
                 <small class="hint" id="ai-opencode-status">Models load from your OpenCode server.</small>
             </div>
             <label for="ai-opacity-slider" class="mt">Chat Opacity</label>

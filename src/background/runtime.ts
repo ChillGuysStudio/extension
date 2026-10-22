@@ -4,20 +4,30 @@ import {
   callGrok,
   callOpenAI,
   callOpenRouter,
-  callVertexAI
+  callVertexAI,
+  getOpenAIModels
 } from "./providers";
 import {
   callOpenCode,
   getOpenCodeModels,
   restartOpenCodeSession
 } from "./opencode";
+import {
+  callOpenCodeV2,
+  getOpenCodeV2Models,
+  pairOpenCodeV2,
+  restartOpenCodeV2Session
+} from "./opencode-v2";
 
 interface RuntimeRequest {
   type: string;
   apiKey?: string;
+  openaiBaseUrl?: string;
   requestBody?: Record<string, unknown> & { parts?: unknown[] };
   provider?: string;
   opencodeConfig?: { baseUrl?: string; password?: string };
+  opencodePairUrl?: string;
+  apiVersion?: string;
   pageKey?: string;
   requestId?: string;
   keepContext?: boolean;
@@ -35,7 +45,10 @@ export function setupRuntimeMessages(): void {
     }
 
     if (request.type === "getOpenCodeModels") {
-      return getOpenCodeModels(request.opencodeConfig)
+      const loadModels =
+        request.apiVersion === "v2" ? getOpenCodeV2Models : getOpenCodeModels;
+
+      return loadModels(request.opencodeConfig)
         .then((data) => ({
           success: true,
           models: data.models,
@@ -47,8 +60,37 @@ export function setupRuntimeMessages(): void {
         }));
     }
 
+    if (request.type === "getOpenAIModels") {
+      return getOpenAIModels(request.apiKey || "", request.openaiBaseUrl)
+        .then((data) => ({
+          success: true,
+          models: data.models,
+          defaultModel: data.defaultModel || ""
+        }))
+        .catch((error: unknown) => ({
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        }));
+    }
+
+    if (request.type === "pairOpenCodeV2") {
+      return pairOpenCodeV2(request.opencodePairUrl || "")
+        .then((data) => ({
+          success: true,
+          baseUrl: data.baseUrl,
+          password: data.password
+        }))
+        .catch((error: unknown) => ({
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        }));
+    }
+
     if (request.type === "restartOpenCodeSession") {
-      return restartOpenCodeSession(request.pageKey)
+      return Promise.all([
+        restartOpenCodeSession(request.pageKey),
+        restartOpenCodeV2Session(request.pageKey)
+      ])
         .then(() => ({ success: true }))
         .catch((error: unknown) => ({
           success: false,
@@ -82,7 +124,11 @@ export function setupRuntimeMessages(): void {
     let apiCall: Promise<string>;
     switch (selectedProvider) {
       case "openai":
-        apiCall = callOpenAI(request.apiKey || "", request.requestBody);
+        apiCall = callOpenAI(
+          request.apiKey || "",
+          request.requestBody,
+          request.openaiBaseUrl
+        );
         break;
       case "anthropic":
         apiCall = callAnthropic(request.apiKey || "", request.requestBody);
@@ -95,6 +141,14 @@ export function setupRuntimeMessages(): void {
         break;
       case "opencode":
         apiCall = callOpenCode(
+          request.opencodeConfig,
+          request.requestBody,
+          request.pageKey,
+          request.keepContext !== false
+        );
+        break;
+      case "opencode-v2":
+        apiCall = callOpenCodeV2(
           request.opencodeConfig,
           request.requestBody,
           request.pageKey,

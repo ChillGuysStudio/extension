@@ -48,6 +48,9 @@ export interface StoredSettings {
   keepContext: boolean;
   opencodeUrl: string;
   opencodePassword: string;
+  openaiReasoningEffort?: string;
+  openaiBaseUrl?: string;
+  openaiCustomModel?: string;
   opacity: number;
   btnOpacity: number;
   chatWidth: number;
@@ -71,6 +74,13 @@ export interface OpenCodeModelsResponse {
   error?: string;
 }
 
+export interface OpenAIModelsResponse {
+  success: boolean;
+  models?: ModelOption[];
+  defaultModel?: string;
+  error?: string;
+}
+
 export interface CaptureTabResponse {
   success: boolean;
   base64?: string;
@@ -86,6 +96,7 @@ export interface OverlayState {
   currentImageMimeType: string | null;
   settingsMinHeight: number;
   opencodeModelCache: ModelCache;
+  openaiModelCache: ModelCache;
   resizeCornerVertical: "top" | "bottom";
   resizeCornerHorizontal: "left" | "right";
   resizeAnchorX: number;
