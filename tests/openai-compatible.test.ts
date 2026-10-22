@@ -172,11 +172,13 @@ describe("connection settings", () => {
       480,
       "default",
       "http://localhost:1234/v1",
-      "qwen3"
+      "qwen3",
+      "high"
     );
     const settings = await getApiKey();
     expect(settings.openaiBaseUrl).toBe("http://localhost:1234/v1");
     expect(settings.openaiCustomModel).toBe("qwen3");
+    expect(settings.thinkingLevel).toBe("high");
     expect(settings.opencodePassword).toBe("");
   });
 

@@ -43,6 +43,11 @@ export function createOverlay() {
             </select>
             <label for="ai-model-select" class="mt">Model</label>
             <select id="ai-model-select"></select>
+            <div id="ai-thinking-level-group" class="hidden">
+                <label for="ai-thinking-level-select" class="mt">Thinking Level</label>
+                <select id="ai-thinking-level-select"></select>
+                <small class="hint" id="ai-thinking-level-hint">Controls how much the model thinks before answering.</small>
+            </div>
             <div id="ai-openai-reasoning-group" class="hidden">
                 <label for="ai-openai-base-url" class="mt">OpenAI-compatible API Base URL</label>
                 <input type="url" id="ai-openai-base-url" placeholder="https://api.openai.com/v1">

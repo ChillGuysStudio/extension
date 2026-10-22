@@ -5,7 +5,7 @@ import {
   isOpenCodeProvider,
   parseOpenCodePairLink
 } from "../../shared/opencode";
-import { updateReasoningEffortUI } from "../settings";
+import { updateReasoningEffortUI, updateThinkingLevelUI } from "../settings";
 
 export function bindSettingsEvents({
   elements,
@@ -24,6 +24,9 @@ export function bindSettingsEvents({
   const keepContextInput = getById<HTMLInputElement>("ai-keep-context");
   const reasoningEffortSelect = document.getElementById(
     "ai-reasoning-effort-select"
+  ) as HTMLSelectElement | null;
+  const thinkingLevelSelect = document.getElementById(
+    "ai-thinking-level-select"
   ) as HTMLSelectElement | null;
   const opencodePasswordInput = getById<HTMLInputElement>(
     "ai-opencode-password"
@@ -51,12 +54,20 @@ export function bindSettingsEvents({
 
   modelSelect.addEventListener("change", () => {
     updateReasoningEffortUI(providerSelect.value, modelSelect.value);
+    updateThinkingLevelUI(providerSelect.value, modelSelect.value);
     void settings.autoSave();
   });
 
   if (reasoningEffortSelect) {
     reasoningEffortSelect.addEventListener("change", () => {
       updateReasoningEffortUI(providerSelect.value, modelSelect.value);
+      void settings.autoSave();
+    });
+  }
+
+  if (thinkingLevelSelect) {
+    thinkingLevelSelect.addEventListener("change", () => {
+      updateThinkingLevelUI(providerSelect.value, modelSelect.value);
       void settings.autoSave();
     });
   }

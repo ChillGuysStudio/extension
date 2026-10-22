@@ -86,6 +86,7 @@ API keys are stored in browser local storage only. Nothing is proxied or logged 
 - KaTeX for inline (`$...$`) and display (`$$...$$`) math expressions
 - Persistent conversation history across page navigations and browser restarts
 - Configurable context window — optionally send full history with each request
+- Selectable thinking level for Gemini models and OpenCode v2 model variants
 - `/reset` slash command to wipe message history and start fresh
 - Adjustable UI opacity for both the floating button and the chatbox
 
@@ -179,6 +180,8 @@ src/
 ├── popup/
 │   └── index.ts          # Toolbar popup — clipboard manager UI
 ├── shared/
+│   ├── gemini.ts         # Gemini thinking levels and budgets
+│   ├── openai.ts         # OpenAI model catalog and token limits
 │   └── opencode.ts       # OpenCode shared constants
 └── globals.d.ts          # Browser / WebExtension type declarations
 ```

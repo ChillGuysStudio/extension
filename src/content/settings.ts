@@ -24,6 +24,7 @@ import {
   parseOpenCodePairLink
 } from "../shared/opencode";
 import type { OpenCodeApiVersion } from "../shared/opencode";
+import { getGeminiThinkingLevels } from "../shared/gemini";
 import {
   isReasoningModel,
   getOpenAITokenLimit,
@@ -143,9 +144,115 @@ export function updateReasoningEffortUI(
   }
 }
 
+const THINKING_LEVEL_LABELS: Record<string, string> = {
+  default: "Default",
+  none: "None",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra High",
+  max: "Max",
+  thinking: "Thinking"
+};
+
+function formatThinkingLevelLabel(level: string): string {
+  const known = THINKING_LEVEL_LABELS[level];
+  if (known) {
+    return known;
+  }
+
+  return level
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getSelectedThinkingLevels(): string[] {
+  const modelSelect = document.getElementById(
+    "ai-model-select"
+  ) as HTMLSelectElement | null;
+  const raw = modelSelect?.selectedOptions?.[0]?.dataset?.thinkingLevels;
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter(
+      (level): level is string => typeof level === "string" && level.length > 0
+    );
+  } catch {
+    return [];
+  }
+}
+
+function getAvailableThinkingLevels(
+  provider: string,
+  model: string | null
+): string[] {
+  if (provider === "aistudio" || provider === "vertex") {
+    return getGeminiThinkingLevels(model);
+  }
+  if (provider === "opencode-v2") {
+    return getSelectedThinkingLevels();
+  }
+  return [];
+}
+
+export function updateThinkingLevelUI(
+  provider: string,
+  model: string | null,
+  preferredLevel?: string | null
+): void {
+  const group = document.getElementById("ai-thinking-level-group");
+  const select = document.getElementById(
+    "ai-thinking-level-select"
+  ) as HTMLSelectElement | null;
+  const hint = document.getElementById("ai-thinking-level-hint");
+
+  if (!group || !select) {
+    return;
+  }
+
+  const levels = getAvailableThinkingLevels(provider, model);
+  group.classList.toggle("hidden", levels.length === 0);
+
+  if (levels.length === 0) {
+    return;
+  }
+
+  const previous = preferredLevel || select.value;
+  select.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "default";
+  defaultOption.textContent = "Default";
+  select.appendChild(defaultOption);
+
+  levels.forEach((level) => {
+    const option = document.createElement("option");
+    option.value = level;
+    option.textContent = formatThinkingLevelLabel(level);
+    select.appendChild(option);
+  });
+
+  select.value = levels.includes(previous) ? previous : "default";
+
+  if (hint) {
+    hint.textContent =
+      provider === "opencode-v2"
+        ? "Thinking variants reported by your OpenCode server for the selected model."
+        : "Controls how deeply the model thinks before answering. Default uses the model's setting.";
+  }
+}
+
 export function setModelOptions(
   models: ModelOption[],
-  savedModel: string | null
+  savedModel: string | null,
+  savedThinkingLevel?: string | null
 ) {
   const modelSelect = getById<HTMLSelectElement>("ai-model-select");
   modelSelect.innerHTML = "";
@@ -153,6 +260,9 @@ export function setModelOptions(
     const opt = document.createElement("option");
     opt.value = m.value;
     opt.textContent = m.label;
+    if (m.thinkingLevels?.length && opt.dataset) {
+      opt.dataset.thinkingLevels = JSON.stringify(m.thinkingLevels);
+    }
     modelSelect.appendChild(opt);
   });
   if (savedModel && models.some((m) => m.value === savedModel)) {
@@ -165,6 +275,11 @@ export function setModelOptions(
     "ai-provider-select"
   ) as HTMLSelectElement | null;
   updateReasoningEffortUI(providerSelect?.value || "", modelSelect.value);
+  updateThinkingLevelUI(
+    providerSelect?.value || "",
+    modelSelect.value,
+    savedThinkingLevel
+  );
   updateComposerMetaUI();
 }
 
@@ -183,6 +298,7 @@ export function updateProviderSettingsUI(provider: string): void {
     "ai-model-select"
   ) as HTMLSelectElement | null;
   updateReasoningEffortUI(provider, modelSelect?.value || null);
+  updateThinkingLevelUI(provider, modelSelect?.value || null);
 
   const isV2 = getOpenCodeApiVersion(provider) === "v2";
   const urlLabel = document.getElementById("ai-opencode-url-label");
@@ -288,6 +404,8 @@ export async function populateModels(
   modelCache: ModelCache,
   openaiModelCache?: ModelCache
 ): Promise<void> {
+  const savedThinkingLevel = settings?.thinkingLevel || null;
+
   if (provider === "openai") {
     const conf = settings || (await getApiKey());
     const inputKey =
@@ -314,7 +432,7 @@ export async function populateModels(
       : PROVIDER_MODELS.openai || [];
 
     if (!key && !isCustomOpenAIBaseUrl(baseUrl)) {
-      setModelOptions(fallbackModels, savedModel);
+      setModelOptions(fallbackModels, savedModel, savedThinkingLevel);
       return;
     }
 
@@ -324,7 +442,7 @@ export async function populateModels(
       openaiModelCache.key === cacheKey &&
       openaiModelCache.models.length > 0
     ) {
-      setModelOptions(openaiModelCache.models, savedModel);
+      setModelOptions(openaiModelCache.models, savedModel, savedThinkingLevel);
       return;
     }
 
@@ -345,7 +463,11 @@ export async function populateModels(
           openaiModelCache.key = cacheKey;
           openaiModelCache.models = data.models;
         }
-        setModelOptions(data.models, savedModel || data.defaultModel || "");
+        setModelOptions(
+          data.models,
+          savedModel || data.defaultModel || "",
+          savedThinkingLevel
+        );
         if (hint) {
           hint.textContent = `Loaded ${data.models.length} OpenAI models`;
         }
@@ -358,18 +480,26 @@ export async function populateModels(
       }
     }
 
-    setModelOptions(fallbackModels, savedModel);
+    setModelOptions(fallbackModels, savedModel, savedThinkingLevel);
     return;
   }
 
   if (!isOpenCodeProvider(provider)) {
-    setModelOptions(PROVIDER_MODELS[provider] || [], savedModel);
+    setModelOptions(
+      PROVIDER_MODELS[provider] || [],
+      savedModel,
+      savedThinkingLevel
+    );
     return;
   }
 
   const apiVersion = getOpenCodeApiVersion(provider);
   if (!apiVersion) {
-    setModelOptions(PROVIDER_MODELS[provider] || [], savedModel);
+    setModelOptions(
+      PROVIDER_MODELS[provider] || [],
+      savedModel,
+      savedThinkingLevel
+    );
     return;
   }
 
@@ -421,7 +551,11 @@ export async function populateModels(
           });
         }
       } catch (error) {
-        setModelOptions([{ value: "", label: "Server default model" }], "");
+        setModelOptions(
+          [{ value: "", label: "Server default model" }],
+          "",
+          savedThinkingLevel
+        );
         status.textContent = `Pairing failed: ${error instanceof Error ? error.message : String(error)}`;
         return;
       }
@@ -447,10 +581,18 @@ export async function populateModels(
     const merged = [{ value: "", label: "Server default model" }].concat(
       serverModels
     );
-    setModelOptions(merged, savedModel || defaultModel || "");
+    setModelOptions(
+      merged,
+      savedModel || defaultModel || "",
+      savedThinkingLevel
+    );
     status.textContent = `Connected to ${opencodeConfig.baseUrl}`;
   } catch (error) {
-    setModelOptions([{ value: "", label: "Server default model" }], "");
+    setModelOptions(
+      [{ value: "", label: "Server default model" }],
+      "",
+      savedThinkingLevel
+    );
     status.textContent = `Model fetch failed: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
@@ -464,6 +606,7 @@ export async function getApiKey(): Promise<StoredSettings> {
     "openaiReasoningEffort",
     "openaiBaseUrl",
     "openaiCustomModel",
+    "thinkingLevel",
     "opencodeServerUrl",
     "opencodePassword",
     "chatOpacity",
@@ -485,6 +628,7 @@ export async function getApiKey(): Promise<StoredSettings> {
       (result.openaiReasoningEffort as string | undefined) || "default",
     openaiBaseUrl: (result.openaiBaseUrl as string | undefined) || "",
     openaiCustomModel: (result.openaiCustomModel as string | undefined) || "",
+    thinkingLevel: (result.thinkingLevel as string | undefined) || "default",
     opencodeUrl: (result.opencodeServerUrl as string | undefined) || defaultUrl,
     opencodePassword: (result.opencodePassword as string | undefined) || "",
     opacity: typeof result.chatOpacity === "number" ? result.chatOpacity : 0.95,
@@ -508,7 +652,8 @@ export async function saveApiKey(
   chatHeight: number,
   reasoningEffort?: string,
   openaiBaseUrl?: string,
-  openaiCustomModel?: string
+  openaiCustomModel?: string,
+  thinkingLevel?: string
 ): Promise<void> {
   const apiVersion = getOpenCodeApiVersion(provider);
   await browser.storage.local.set({
@@ -519,6 +664,7 @@ export async function saveApiKey(
     openaiReasoningEffort: reasoningEffort || "default",
     openaiBaseUrl: openaiBaseUrl?.trim() || "",
     openaiCustomModel: openaiCustomModel?.trim() || "",
+    thinkingLevel: thinkingLevel || "default",
     opencodeServerUrl: normalizeOpenCodeUrl(opencodeUrl, apiVersion),
     opencodePassword: opencodePassword || "",
     chatOpacity: opacity,
@@ -566,6 +712,12 @@ export function createSettingsController({
           "ai-reasoning-effort-select"
         ) as HTMLSelectElement | null
       )?.value || "default";
+    const thinkingLevel =
+      (
+        document.getElementById(
+          "ai-thinking-level-select"
+        ) as HTMLSelectElement | null
+      )?.value || "default";
     const opacity =
       parseInt(getById<HTMLInputElement>("ai-opacity-slider").value, 10) / 100;
     const buttonOpacity =
@@ -589,7 +741,8 @@ export function createSettingsController({
       chatbox.offsetHeight || 480,
       reasoningEffort,
       getById<HTMLInputElement>("ai-openai-base-url").value,
-      getById<HTMLInputElement>("ai-openai-custom-model").value
+      getById<HTMLInputElement>("ai-openai-custom-model").value,
+      thinkingLevel
     );
     updateComposerMetaUI();
   }
@@ -628,6 +781,19 @@ export function createSettingsController({
     }
 
     await updateProviderModels(resolvedProvider, settings.model, settings);
+
+    const thinkingSelect = document.getElementById(
+      "ai-thinking-level-select"
+    ) as HTMLSelectElement | null;
+    if (
+      thinkingSelect &&
+      thinkingSelect.options.length > 0 &&
+      thinkingSelect.value !== settings.thinkingLevel
+    ) {
+      await browser.storage.local.set({
+        thinkingLevel: thinkingSelect.value || "default"
+      });
+    }
 
     const pct = Math.round(settings.opacity * 100);
     getById<HTMLInputElement>("ai-opacity-slider").value = String(pct);

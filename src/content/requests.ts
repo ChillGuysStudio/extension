@@ -10,6 +10,7 @@ import {
   getOpenAITokenLimit,
   isCustomOpenAIBaseUrl
 } from "../shared/openai";
+import { getGeminiThinkingConfig } from "../shared/gemini";
 
 interface SendToAIOptions {
   text: string;
@@ -43,7 +44,8 @@ export function buildRequestBody(
   imageBase64: string | null,
   imageMimeType: string | null,
   reasoningEffort?: string,
-  openaiBaseUrl?: string
+  openaiBaseUrl?: string,
+  thinkingLevel?: string
 ): Record<string, unknown> {
   const instruction =
     "You are a helpful AI assistant. Respond using Markdown formatting where appropriate: use **bold**, *italic*, `inline code`, ```code blocks```, bullet lists, numbered lists, and headers. For short factual answers (a letter, number, or single word) just reply directly without extra markup.";
@@ -56,7 +58,8 @@ export function buildRequestBody(
   if (provider === "aistudio" || provider === "vertex") {
     const modelId = model || "gemini-3.1-pro-preview";
     type GeminiPart =
-      { text: string } | { inline_data: { mime_type: string; data: string } };
+      | { text: string }
+      | { inline_data: { mime_type: string; data: string } };
     const contents: Array<{
       role: "user" | "model";
       parts: GeminiPart[];
@@ -71,6 +74,7 @@ export function buildRequestBody(
       });
     }
     parts.push({ text: userText });
+    const thinkingConfig = getGeminiThinkingConfig(modelId, thinkingLevel);
     return {
       _geminiModel: modelId,
       systemInstruction: { parts: [{ text: instruction }] },
@@ -79,7 +83,8 @@ export function buildRequestBody(
         temperature: 0.1,
         topK: 1,
         topP: 0.8,
-        maxOutputTokens: 2048
+        maxOutputTokens: thinkingConfig ? 8192 : 2048,
+        ...(thinkingConfig ? { thinkingConfig } : {})
       }
     };
   }
@@ -250,10 +255,14 @@ export function buildRequestBody(
 
     if (model && model.includes("/")) {
       const splitIndex = model.indexOf("/");
-      body.model = {
+      const modelRef: Record<string, unknown> = {
         providerID: model.slice(0, splitIndex),
         id: model.slice(splitIndex + 1)
       };
+      if (thinkingLevel && thinkingLevel !== "default") {
+        modelRef.variant = thinkingLevel;
+      }
+      body.model = modelRef;
     }
 
     return body;
@@ -296,8 +305,9 @@ export async function sendToAI({
     text,
     imageBase64,
     imageMimeType,
-    settings.openaiReasoningEffort,
-    settings.openaiBaseUrl
+    provider === "openai" ? settings.openaiReasoningEffort : undefined,
+    settings.openaiBaseUrl,
+    settings.thinkingLevel
   );
   const apiVersion = getOpenCodeApiVersion(provider);
   const opencodeConfig = {
