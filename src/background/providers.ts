@@ -1,4 +1,8 @@
-import { filterAndSortOpenAIModels } from "../shared/openai";
+import {
+  filterAndSortOpenAIModels,
+  normalizeOpenAIBaseUrl,
+  isCustomOpenAIBaseUrl
+} from "../shared/openai";
 import type { ModelOption } from "../shared/openai";
 
 function getProviderErrorMessage(text, status) {
@@ -82,7 +86,7 @@ function callChatCompletions(url, apiKey, requestBody, headers = {}) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       ...headers
     },
     body: JSON.stringify(requestBody)
@@ -103,26 +107,29 @@ function callChatCompletions(url, apiKey, requestBody, headers = {}) {
     });
 }
 
-export function callOpenAI(apiKey, requestBody) {
+export function callOpenAI(apiKey, requestBody, baseUrl?: string) {
   return callChatCompletions(
-    "https://api.openai.com/v1/chat/completions",
+    `${normalizeOpenAIBaseUrl(baseUrl)}/chat/completions`,
     apiKey,
     requestBody
   );
 }
 
-export async function getOpenAIModels(apiKey: string): Promise<{
+export async function getOpenAIModels(
+  apiKey: string,
+  baseUrl?: string
+): Promise<{
   models: ModelOption[];
   defaultModel: string;
 }> {
-  if (!apiKey) {
+  if (!apiKey && !isCustomOpenAIBaseUrl(baseUrl)) {
     throw new Error("No OpenAI API key provided");
   }
 
-  const response = await fetch("https://api.openai.com/v1/models", {
+  const response = await fetch(`${normalizeOpenAIBaseUrl(baseUrl)}/models`, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       "Content-Type": "application/json"
     }
   });
@@ -152,7 +159,11 @@ export async function getOpenAIModels(apiKey: string): Promise<{
     })
     .map((item) => item.id as string);
 
-  const models = filterAndSortOpenAIModels(rawIds);
+  const models = isCustomOpenAIBaseUrl(baseUrl)
+    ? Array.from(new Set(rawIds))
+        .sort()
+        .map((id) => ({ value: id, label: id }))
+    : filterAndSortOpenAIModels(rawIds);
   const defaultModel = models[0]?.value || "gpt-6.1-sol";
 
   return { models, defaultModel };

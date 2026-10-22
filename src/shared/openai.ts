@@ -3,6 +3,29 @@ export interface ModelOption {
   label: string;
 }
 
+export const OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1";
+
+export function normalizeOpenAIBaseUrl(input?: string | null): string {
+  const value = (input || "").trim() || OPENAI_DEFAULT_BASE_URL;
+  const url = new URL(value);
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      "Enter an HTTP(S) API base URL without credentials, query, or fragment."
+    );
+  }
+  return url.href.replace(/\/+$/, "");
+}
+
+export function isCustomOpenAIBaseUrl(input?: string | null): boolean {
+  return normalizeOpenAIBaseUrl(input) !== OPENAI_DEFAULT_BASE_URL;
+}
+
 export interface ModelLimits {
   contextWindow: number;
   maxOutputTokens: number;
@@ -52,10 +75,10 @@ export const OPENAI_MODEL_LIMITS: Record<string, ModelLimits> = {
   "gpt-6": { contextWindow: 1050000, maxOutputTokens: 128000 },
 
   // O-Series Reasoning Models
-  "o3": { contextWindow: 200000, maxOutputTokens: 100000 },
+  o3: { contextWindow: 200000, maxOutputTokens: 100000 },
   "o3-mini": { contextWindow: 200000, maxOutputTokens: 100000 },
   "o4-mini": { contextWindow: 200000, maxOutputTokens: 100000 },
-  "o1": { contextWindow: 200000, maxOutputTokens: 100000 },
+  o1: { contextWindow: 200000, maxOutputTokens: 100000 },
 
   // Multimodal General-Purpose
   "gpt-4o": { contextWindow: 128000, maxOutputTokens: 16384 },
@@ -139,9 +162,7 @@ export function formatOpenAIModelLabel(id: string): string {
   if (id === "gpt-4o-mini") return "GPT-4o Mini";
   if (id === "chatgpt-4o-latest") return "ChatGPT-4o Latest";
 
-  return id
-    .replace(/^gpt-/i, "GPT-")
-    .replace(/^codex-/i, "Codex-");
+  return id.replace(/^gpt-/i, "GPT-").replace(/^codex-/i, "Codex-");
 }
 
 const EXCLUDED_OPENAI_PATTERNS =
@@ -155,7 +176,9 @@ export function isDeprecatedOpenAIModel(id: string): boolean {
   return DEPRECATED_OPENAI_PATTERNS.test(id);
 }
 
-export function filterAndSortOpenAIModels(rawModelIds: string[]): ModelOption[] {
+export function filterAndSortOpenAIModels(
+  rawModelIds: string[]
+): ModelOption[] {
   const filtered = rawModelIds.filter((id) => {
     if (!id || typeof id !== "string") return false;
     if (EXCLUDED_OPENAI_PATTERNS.test(id)) return false;

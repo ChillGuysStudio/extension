@@ -22,6 +22,7 @@ import {
 interface RuntimeRequest {
   type: string;
   apiKey?: string;
+  openaiBaseUrl?: string;
   requestBody?: Record<string, unknown> & { parts?: unknown[] };
   provider?: string;
   opencodeConfig?: { baseUrl?: string; password?: string };
@@ -60,7 +61,7 @@ export function setupRuntimeMessages(): void {
     }
 
     if (request.type === "getOpenAIModels") {
-      return getOpenAIModels(request.apiKey || "")
+      return getOpenAIModels(request.apiKey || "", request.openaiBaseUrl)
         .then((data) => ({
           success: true,
           models: data.models,
@@ -123,7 +124,11 @@ export function setupRuntimeMessages(): void {
     let apiCall: Promise<string>;
     switch (selectedProvider) {
       case "openai":
-        apiCall = callOpenAI(request.apiKey || "", request.requestBody);
+        apiCall = callOpenAI(
+          request.apiKey || "",
+          request.requestBody,
+          request.openaiBaseUrl
+        );
         break;
       case "anthropic":
         apiCall = callAnthropic(request.apiKey || "", request.requestBody);

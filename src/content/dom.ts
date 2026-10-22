@@ -44,6 +44,11 @@ export function createOverlay() {
             <label for="ai-model-select" class="mt">Model</label>
             <select id="ai-model-select"></select>
             <div id="ai-openai-reasoning-group" class="hidden">
+                <label for="ai-openai-base-url" class="mt">OpenAI-compatible API Base URL</label>
+                <input type="url" id="ai-openai-base-url" placeholder="https://api.openai.com/v1">
+                <small class="hint">Include /v1 if required. Leave empty for OpenAI. Local servers may not require an API key.</small>
+                <label for="ai-openai-custom-model" class="mt">Custom model ID (optional)</label>
+                <input type="text" id="ai-openai-custom-model" placeholder="Use a listed model, or enter a model ID">
                 <label for="ai-reasoning-effort-select" class="mt">Reasoning Effort</label>
                 <select id="ai-reasoning-effort-select">
                     <option value="default">Default</option>

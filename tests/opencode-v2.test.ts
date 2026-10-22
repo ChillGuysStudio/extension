@@ -88,6 +88,22 @@ beforeEach(() => {
 });
 
 describe("getOpenCodeV2Models", () => {
+  test("authenticates a simple password using HTTP Basic", async () => {
+    routes["/api/info"] = () => json({ version: "2.0.32" });
+    routes["/api/model"] = () => json({ data: [] });
+    routes["/api/model/default"] = () => json({ data: null });
+    await getOpenCodeV2Models({
+      baseUrl: "http://127.0.0.1:49489",
+      password: "simple-password"
+    });
+    expect(requests).toHaveLength(3);
+    for (const request of requests) {
+      expect(request.headers.get("Authorization")).toBe(
+        `Basic ${btoa("opencode:simple-password")}`
+      );
+    }
+  });
+
   test("maps v2 models and resolves the default model", async () => {
     routes["/api/info"] = () => json({ version: "2.1.2" });
     routes["/api/model"] = () =>
@@ -302,6 +318,30 @@ describe("callOpenCodeV2", () => {
     expect(storage.opencodeV2SessionsByPage).toEqual({ page: "ses_test" });
   });
 
+  test("recreates a stale session when model selection returns 404", async () => {
+    storage.opencodeV2SessionsByPage = { page: "ses_missing" };
+    routes["/api/info"] = () => json({ version: "2.0.32" });
+    routes["/api/session"] = () => json({ data: { id: "ses_new" } });
+    routes["/api/session/ses_new/model"] = () => noContent();
+    routes["/api/session/ses_new/prompt"] = () =>
+      json({ data: { id: "msg_user" } });
+    routes["/api/experimental/session/ses_new/wait"] = () => noContent();
+    routes["/api/session/ses_new/message?order=desc&limit=50"] = () =>
+      json({
+        data: [
+          { type: "assistant", content: [{ type: "text", text: "Recovered" }] }
+        ]
+      });
+    expect(
+      await callOpenCodeV2(
+        { baseUrl: "http://localhost:49489" },
+        { text: "Hello", model: { providerID: "test", id: "model" } },
+        "page"
+      )
+    ).toBe("Recovered");
+    expect(storage.opencodeV2SessionsByPage).toEqual({ page: "ses_new" });
+  });
+
   test("prunes the v2 session before a stateless request", async () => {
     storage.opencodeV2SessionsByPage = { page: "ses_existing" };
 
@@ -358,7 +398,7 @@ describe("callOpenCodeV2", () => {
         true
       )
     ).rejects.toThrow(
-      "OpenCode v2 authentication failed. Run `opencode pair` and paste the pairing link into the extension settings, or check your token."
+      "OpenCode v2 authentication failed. Check your server password or pairing token, or run `opencode pair` and paste a fresh pairing link into the extension settings."
     );
   });
 });

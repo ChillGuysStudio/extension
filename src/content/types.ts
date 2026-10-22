@@ -49,6 +49,8 @@ export interface StoredSettings {
   opencodeUrl: string;
   opencodePassword: string;
   openaiReasoningEffort?: string;
+  openaiBaseUrl?: string;
+  openaiCustomModel?: string;
   opacity: number;
   btnOpacity: number;
   chatWidth: number;

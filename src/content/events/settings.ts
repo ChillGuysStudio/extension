@@ -79,6 +79,12 @@ export function bindSettingsEvents({
     })();
   });
 
+  for (const id of ["ai-openai-base-url", "ai-openai-custom-model"]) {
+    getById<HTMLInputElement>(id).addEventListener("change", () => {
+      void checkOpenAIKey();
+    });
+  }
+
   apiKeyInput.addEventListener("input", (event) => {
     const val = getInputEventValue(event).trim();
     if (
@@ -93,19 +99,26 @@ export function bindSettingsEvents({
     void settings.autoSave();
   });
 
+  let reloadingOpenCode = false;
   const reloadOpenCodeModels = async () => {
-    const nextSettings = {
-      opencodeUrl: opencodeUrlInput.value,
-      opencodePassword: opencodePasswordInput.value
-    };
-    state.opencodeModelCache = { key: "", models: [] };
-    await settings.autoSave();
-    if (isOpenCodeProvider(providerSelect.value)) {
-      await settings.updateProviderModels(
-        providerSelect.value,
-        modelSelect.value,
-        nextSettings
-      );
+    if (reloadingOpenCode) return;
+    reloadingOpenCode = true;
+    try {
+      const nextSettings = {
+        opencodeUrl: opencodeUrlInput.value,
+        opencodePassword: opencodePasswordInput.value
+      };
+      state.opencodeModelCache = { key: "", models: [] };
+      await settings.autoSave();
+      if (isOpenCodeProvider(providerSelect.value)) {
+        await settings.updateProviderModels(
+          providerSelect.value,
+          modelSelect.value,
+          nextSettings
+        );
+      }
+    } finally {
+      reloadingOpenCode = false;
     }
   };
 

@@ -190,7 +190,7 @@ async function openCodeV2Fetch<T>(
       parseErrorPayload(text) || response.statusText || "Request failed";
     if (response.status === 401) {
       throw new Error(
-        "OpenCode v2 authentication failed. Run `opencode pair` and paste the pairing link into the extension settings, or check your token."
+        "OpenCode v2 authentication failed. Check your server password or pairing token, or run `opencode pair` and paste a fresh pairing link into the extension settings."
       );
     }
     throw new Error(
@@ -619,15 +619,13 @@ export async function callOpenCodeV2(
     scopedPageKey
   );
 
-  if (!keepContext) {
-    await pruneOpenCodeV2Session(baseUrl, password, sessionId);
-  }
-
-  await switchOpenCodeV2Model(baseUrl, password, sessionId, model);
-
   const startedAt = Date.now();
 
   try {
+    if (!keepContext) {
+      await pruneOpenCodeV2Session(baseUrl, password, sessionId);
+    }
+    await switchOpenCodeV2Model(baseUrl, password, sessionId, model);
     await sendOpenCodeV2Prompt(baseUrl, password, sessionId, requestBody);
   } catch (error) {
     if (!shouldRetryWithNewSession(error)) {

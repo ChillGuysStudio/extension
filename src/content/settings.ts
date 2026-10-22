@@ -24,7 +24,12 @@ import {
   parseOpenCodePairLink
 } from "../shared/opencode";
 import type { OpenCodeApiVersion } from "../shared/opencode";
-import { isReasoningModel, getOpenAITokenLimit } from "../shared/openai";
+import {
+  isReasoningModel,
+  getOpenAITokenLimit,
+  normalizeOpenAIBaseUrl,
+  isCustomOpenAIBaseUrl
+} from "../shared/openai";
 
 export { normalizeOpenCodeUrl } from "../shared/opencode";
 
@@ -64,9 +69,18 @@ function getSelectedModelLabel(): string {
 
 export function getSelectedProviderInfo(): SelectedProviderInfo {
   const provider = getById<HTMLSelectElement>("ai-provider-select").value;
-  const model = getById<HTMLSelectElement>("ai-model-select").value || null;
+  const customModel =
+    provider === "openai"
+      ? (
+          document.getElementById(
+            "ai-openai-custom-model"
+          ) as HTMLInputElement | null
+        )?.value.trim()
+      : "";
+  const model =
+    customModel || getById<HTMLSelectElement>("ai-model-select").value || null;
   const providerLabel = getProviderLabel(provider);
-  const modelLabel = getSelectedModelLabel();
+  const modelLabel = customModel || getSelectedModelLabel();
 
   return {
     provider,
@@ -107,6 +121,12 @@ export function updateReasoningEffortUI(
   reasoningGroup.classList.toggle("hidden", !isOpenAI);
 
   if (isOpenAI) {
+    model =
+      (
+        document.getElementById(
+          "ai-openai-custom-model"
+        ) as HTMLInputElement | null
+      )?.value.trim() || model;
     const isReasoning = isReasoningModel(model || "");
     reasoningSelect.disabled = !isReasoning;
     if (reasoningHint) {
@@ -173,12 +193,15 @@ export function updateProviderSettingsUI(provider: string): void {
 
   if (isV2) {
     if (urlLabel) {
-      urlLabel.textContent = "OpenCode Pair Link";
+      urlLabel.textContent = "OpenCode Server URL or Pair Link";
     }
     urlInput.placeholder = OPENCODE_V2_PAIR_PLACEHOLDER;
     if (passwordGroup) {
-      passwordGroup.classList.add("hidden");
+      passwordGroup.classList.remove("hidden");
     }
+    if (passwordLabel)
+      passwordLabel.textContent = "Server Password or Pairing Token";
+    passwordInput.placeholder = "OPENCODE_SERVER_PASSWORD or pairing token";
   } else {
     if (urlLabel) {
       urlLabel.textContent = "OpenCode Server URL";
@@ -242,11 +265,13 @@ export async function fetchOpenCodeModels(
 }
 
 export async function fetchOpenAIModels(
-  apiKey: string
+  apiKey: string,
+  baseUrl?: string
 ): Promise<OpenAIModelsResponse> {
   const response = (await browser.runtime.sendMessage({
     type: "getOpenAIModels",
-    apiKey
+    apiKey,
+    openaiBaseUrl: baseUrl
   })) as OpenAIModelsResponse;
 
   if (!response || !response.success) {
@@ -266,16 +291,34 @@ export async function populateModels(
   if (provider === "openai") {
     const conf = settings || (await getApiKey());
     const inputKey =
-      (document.getElementById("ai-sync-key") as HTMLInputElement | null)
-        ?.value?.trim() || "";
+      (
+        document.getElementById("ai-sync-key") as HTMLInputElement | null
+      )?.value?.trim() || "";
     const key = (inputKey || conf.key || "").trim();
+    let baseUrl: string;
+    try {
+      baseUrl = normalizeOpenAIBaseUrl(conf.openaiBaseUrl);
+    } catch (error) {
+      const hint = document.getElementById("ai-api-key-hint");
+      if (hint)
+        hint.textContent =
+          error instanceof Error ? error.message : String(error);
+      return;
+    }
+    const customModel = conf.openaiCustomModel?.trim();
+    const fallbackModel = customModel || savedModel;
+    const fallbackModels = isCustomOpenAIBaseUrl(baseUrl)
+      ? fallbackModel
+        ? [{ value: fallbackModel, label: fallbackModel }]
+        : [{ value: "", label: "Enter a custom model ID" }]
+      : PROVIDER_MODELS.openai || [];
 
-    if (!key) {
-      setModelOptions(PROVIDER_MODELS.openai || [], savedModel);
+    if (!key && !isCustomOpenAIBaseUrl(baseUrl)) {
+      setModelOptions(fallbackModels, savedModel);
       return;
     }
 
-    const cacheKey = `openai::${key}`;
+    const cacheKey = `openai::${baseUrl}::${key}`;
     if (
       openaiModelCache &&
       openaiModelCache.key === cacheKey &&
@@ -291,7 +334,7 @@ export async function populateModels(
     }
 
     try {
-      const data = await fetchOpenAIModels(key);
+      const data = await fetchOpenAIModels(key, baseUrl);
       if (
         data &&
         data.success &&
@@ -310,11 +353,12 @@ export async function populateModels(
       }
     } catch {
       if (hint) {
-        hint.textContent = "Could not reach OpenAI (using default models)";
+        hint.textContent =
+          "Could not load models. Enter a custom model ID or use a default model.";
       }
     }
 
-    setModelOptions(PROVIDER_MODELS.openai || [], savedModel);
+    setModelOptions(fallbackModels, savedModel);
     return;
   }
 
@@ -381,11 +425,6 @@ export async function populateModels(
         status.textContent = `Pairing failed: ${error instanceof Error ? error.message : String(error)}`;
         return;
       }
-    } else if (!opencodeConfig.password) {
-      setModelOptions([{ value: "", label: "Server default model" }], "");
-      status.textContent =
-        "Run `opencode pair` in terminal and paste the link to connect.";
-      return;
     }
   }
 
@@ -423,6 +462,8 @@ export async function getApiKey(): Promise<StoredSettings> {
     "apiModel",
     "aiKeepContext",
     "openaiReasoningEffort",
+    "openaiBaseUrl",
+    "openaiCustomModel",
     "opencodeServerUrl",
     "opencodePassword",
     "chatOpacity",
@@ -442,6 +483,8 @@ export async function getApiKey(): Promise<StoredSettings> {
       typeof result.aiKeepContext === "boolean" ? result.aiKeepContext : true,
     openaiReasoningEffort:
       (result.openaiReasoningEffort as string | undefined) || "default",
+    openaiBaseUrl: (result.openaiBaseUrl as string | undefined) || "",
+    openaiCustomModel: (result.openaiCustomModel as string | undefined) || "",
     opencodeUrl: (result.opencodeServerUrl as string | undefined) || defaultUrl,
     opencodePassword: (result.opencodePassword as string | undefined) || "",
     opacity: typeof result.chatOpacity === "number" ? result.chatOpacity : 0.95,
@@ -463,7 +506,9 @@ export async function saveApiKey(
   btnOp: number,
   chatWidth: number,
   chatHeight: number,
-  reasoningEffort?: string
+  reasoningEffort?: string,
+  openaiBaseUrl?: string,
+  openaiCustomModel?: string
 ): Promise<void> {
   const apiVersion = getOpenCodeApiVersion(provider);
   await browser.storage.local.set({
@@ -472,6 +517,8 @@ export async function saveApiKey(
     apiModel: model,
     aiKeepContext: keepContext,
     openaiReasoningEffort: reasoningEffort || "default",
+    openaiBaseUrl: openaiBaseUrl?.trim() || "",
+    openaiCustomModel: openaiCustomModel?.trim() || "",
     opencodeServerUrl: normalizeOpenCodeUrl(opencodeUrl, apiVersion),
     opencodePassword: opencodePassword || "",
     chatOpacity: opacity,
@@ -525,12 +572,9 @@ export function createSettingsController({
       parseInt(getById<HTMLInputElement>("ai-btn-opacity-slider").value, 10) /
       100;
 
-    const isV2 = getOpenCodeApiVersion(provider) === "v2";
-    let passwordValue = getById<HTMLInputElement>("ai-opencode-password").value;
-    if (isV2 && !passwordValue) {
-      const current = await getApiKey();
-      passwordValue = current.opencodePassword || "";
-    }
+    const passwordValue = getById<HTMLInputElement>(
+      "ai-opencode-password"
+    ).value;
 
     await saveApiKey(
       key,
@@ -543,7 +587,9 @@ export function createSettingsController({
       buttonOpacity,
       chatbox.offsetWidth || 320,
       chatbox.offsetHeight || 480,
-      reasoningEffort
+      reasoningEffort,
+      getById<HTMLInputElement>("ai-openai-base-url").value,
+      getById<HTMLInputElement>("ai-openai-custom-model").value
     );
     updateComposerMetaUI();
   }
@@ -554,18 +600,18 @@ export function createSettingsController({
     }
 
     const settings = await getApiKey();
+    getById<HTMLInputElement>("ai-openai-base-url").value =
+      settings.openaiBaseUrl || "";
+    getById<HTMLInputElement>("ai-openai-custom-model").value =
+      settings.openaiCustomModel || "";
     if (settings.key) {
       getById<HTMLInputElement>("ai-sync-key").value = settings.key;
     }
 
     const resolvedProvider = settings.provider || "aistudio";
     const defaultUrl = getOpenCodeDefaultUrl(resolvedProvider);
-    const isV2 = getOpenCodeApiVersion(resolvedProvider) === "v2";
-    getById<HTMLInputElement>("ai-opencode-url").value = isV2
-      ? settings.opencodePassword
-        ? settings.opencodeUrl
-        : ""
-      : settings.opencodeUrl && settings.opencodeUrl !== defaultUrl
+    getById<HTMLInputElement>("ai-opencode-url").value =
+      settings.opencodeUrl && settings.opencodeUrl !== defaultUrl
         ? settings.opencodeUrl
         : "";
     getById<HTMLInputElement>("ai-opencode-password").value =
@@ -581,10 +627,7 @@ export function createSettingsController({
       reasoningSelect.value = settings.openaiReasoningEffort || "default";
     }
 
-    await updateProviderModels(resolvedProvider, settings.model, {
-      opencodeUrl: settings.opencodeUrl,
-      opencodePassword: settings.opencodePassword
-    });
+    await updateProviderModels(resolvedProvider, settings.model, settings);
 
     const pct = Math.round(settings.opacity * 100);
     getById<HTMLInputElement>("ai-opacity-slider").value = String(pct);
