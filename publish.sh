@@ -73,7 +73,7 @@ if (!updates.find(e => e.version === '${VERSION}')) {
 "
 
 # ── Commit & push ─────────────────────────────────────────────────────────────
-git add public/manifest.json updates.json publish.sh
+git add public/manifest.json updates.json publish.sh package.json README.md
 git diff --cached --quiet || git commit -m "v${VERSION}"
 git push
 echo "✔ Pushed to GitHub"

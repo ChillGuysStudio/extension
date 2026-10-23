@@ -1,7 +1,7 @@
 {
   "name": "clipboard-manager-extension",
   "private": true,
-  "version": "4.4.0",
+  "version": "4.5.0",
   "type": "module",
   "scripts": {
     "build": "vite build --config vite.content.config.ts && vite build --config vite.background.config.ts && vite build --config vite.popup.config.ts",
