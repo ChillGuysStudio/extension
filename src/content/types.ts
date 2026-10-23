@@ -34,6 +34,7 @@ export interface SizeLimits {
 export interface ModelOption {
   value: string;
   label: string;
+  thinkingLevels?: string[];
 }
 
 export interface ModelCache {
@@ -51,6 +52,7 @@ export interface StoredSettings {
   openaiReasoningEffort?: string;
   openaiBaseUrl?: string;
   openaiCustomModel?: string;
+  thinkingLevel?: string;
   opacity: number;
   btnOpacity: number;
   chatWidth: number;

@@ -58,6 +58,7 @@ interface OpenCodeV2ModelInfo {
   name?: string;
   status?: string;
   enabled?: boolean;
+  variants?: Array<{ id?: string }>;
 }
 
 interface OpenCodeV2ModelListResponse {
@@ -71,11 +72,13 @@ interface OpenCodeV2ModelDefaultResponse {
 interface OpenCodeV2ModelOption {
   value: string;
   label: string;
+  thinkingLevels?: string[];
 }
 
 interface OpenCodeV2RequestModel {
   providerID: string;
   id: string;
+  variant?: string;
 }
 
 interface OpenCodeV2PairingSession {
@@ -364,7 +367,11 @@ function extractOpenCodeV2Model(value: unknown): OpenCodeV2RequestModel | null {
     return null;
   }
 
-  const model = value as { providerID?: unknown; id?: unknown };
+  const model = value as {
+    providerID?: unknown;
+    id?: unknown;
+    variant?: unknown;
+  };
   if (typeof model.providerID !== "string" || typeof model.id !== "string") {
     return null;
   }
@@ -372,7 +379,14 @@ function extractOpenCodeV2Model(value: unknown): OpenCodeV2RequestModel | null {
     return null;
   }
 
-  return { providerID: model.providerID, id: model.id };
+  const result: OpenCodeV2RequestModel = {
+    providerID: model.providerID,
+    id: model.id
+  };
+  if (typeof model.variant === "string" && model.variant) {
+    result.variant = model.variant;
+  }
+  return result;
 }
 
 function extractOpenCodeV2Files(value: unknown): OpenCodeV2FileAttachment[] {
@@ -706,7 +720,22 @@ export async function getOpenCodeV2Models(
 
     const value = `${model.providerID}/${model.id}`;
     const label = model.name ? `${model.name} (${model.providerID})` : value;
-    modelsByValue.set(value, { value, label });
+    const option: OpenCodeV2ModelOption = { value, label };
+    const thinkingLevels = Array.isArray(model.variants)
+      ? Array.from(
+          new Set(
+            model.variants
+              .map((variant) =>
+                typeof variant?.id === "string" ? variant.id : ""
+              )
+              .filter((variant) => variant.length > 0)
+          )
+        )
+      : [];
+    if (thinkingLevels.length > 0) {
+      option.thinkingLevels = thinkingLevels;
+    }
+    modelsByValue.set(value, option);
   });
 
   const models = Array.from(modelsByValue.values()).sort((a, b) =>

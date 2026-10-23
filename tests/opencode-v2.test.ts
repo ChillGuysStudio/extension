@@ -158,6 +158,36 @@ describe("getOpenCodeV2Models", () => {
       { value: "openai/gpt", label: "GPT (openai)" }
     ]);
   });
+
+  test("exposes thinking variants for models that report them", async () => {
+    routes["/api/info"] = () => json({ version: "2.1.2" });
+    routes["/api/model"] = () =>
+      json({
+        data: [
+          {
+            id: "gpt",
+            providerID: "openai",
+            name: "GPT",
+            status: "active",
+            enabled: true,
+            variants: [{ id: "low" }, { id: "high" }, { id: "high" }]
+          }
+        ]
+      });
+    routes["/api/model/default"] = () => json({ data: null });
+
+    const result = await getOpenCodeV2Models({
+      baseUrl: "http://127.0.0.1:4096"
+    });
+
+    expect(result.models).toEqual([
+      {
+        value: "openai/gpt",
+        label: "GPT (openai)",
+        thinkingLevels: ["low", "high"]
+      }
+    ]);
+  });
 });
 
 describe("parseOpenCodePairLink", () => {
@@ -285,7 +315,7 @@ describe("callOpenCodeV2", () => {
             name: "image.png"
           }
         ],
-        model: { providerID: "opencode", id: "test-model" }
+        model: { providerID: "opencode", id: "test-model", variant: "high" }
       },
       "page",
       true
@@ -298,7 +328,11 @@ describe("callOpenCodeV2", () => {
 
     const switchModel = findRequest("POST", "/api/session/ses_test/model");
     expect(switchModel?.body).toEqual({
-      model: { providerID: "opencode", id: "test-model" }
+      model: {
+        providerID: "opencode",
+        id: "test-model",
+        variant: "high"
+      }
     });
 
     const prompt = findRequest("POST", "/api/session/ses_test/prompt");
@@ -443,6 +477,27 @@ describe("buildRequestBody", () => {
       system: expect.any(String),
       parts: [{ type: "text", text: "Question: Question" }],
       model: { providerID: "opencode", modelID: "test-model" }
+    });
+  });
+
+  test("passes the selected thinking level as an OpenCode v2 variant", () => {
+    const body = buildRequestBody(
+      "opencode-v2",
+      "opencode/test-model",
+      [],
+      true,
+      "Question",
+      null,
+      null,
+      undefined,
+      undefined,
+      "high"
+    );
+
+    expect(body.model).toEqual({
+      providerID: "opencode",
+      id: "test-model",
+      variant: "high"
     });
   });
 });
