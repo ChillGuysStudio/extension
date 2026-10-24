@@ -4,7 +4,7 @@
 
 <p>A floating AI chat assistant, quiz auto-answerer, and image analyzer.<br>Disguised as a clipboard manager. Hidden behind a 20 px button.</p>
 
-[![Version](https://img.shields.io/badge/version-4.5.0-18181b)](https://github.com/chillguysstudio/extension/releases/latest)
+[![Version](https://img.shields.io/badge/version-4.6.0-18181b)](https://github.com/chillguysstudio/extension/releases/latest)
 [![Firefox](https://img.shields.io/badge/Firefox-Extension-FF7139?logo=firefox-browser&logoColor=white)](https://github.com/chillguysstudio/extension/releases/latest)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
