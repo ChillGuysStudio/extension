@@ -39,6 +39,7 @@ export async function startContentApp(): Promise<void> {
   const theme = createThemeController(chatbox);
   const pendingRequests = new Map<string, PendingRequest>();
   const state = createOverlayState();
+  let cancelQuizHover = (): void => {};
 
   state.isMobile =
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -66,6 +67,7 @@ export async function startContentApp(): Promise<void> {
   }
 
   async function beforeSend() {
+    cancelQuizHover();
     const settings = await getApiKey();
     const contextMessages = messages.getContextMessages();
     if (!settings.keepContext) {
@@ -79,6 +81,7 @@ export async function startContentApp(): Promise<void> {
   }
 
   async function resetConversation(): Promise<void> {
+    cancelQuizHover();
     pendingRequests.forEach((pending, requestId) => {
       pending.reject(new Error("Conversation reset."));
       pendingRequests.delete(requestId);
@@ -133,7 +136,10 @@ export async function startContentApp(): Promise<void> {
         return nativeCapture;
       }
 
-      console.warn("Quick Notes: mobile native capture failed", nativeCapture.error);
+      console.warn(
+        "Quick Notes: mobile native capture failed",
+        nativeCapture.error
+      );
 
       try {
         console.log("Quick Notes: mobile html2canvas capture start", {
@@ -184,6 +190,7 @@ export async function startContentApp(): Promise<void> {
     sendToAI,
     captureTab
   });
+  cancelQuizHover = quizAutofill.cancelHover;
 
   layout.loadBtnPos((initialPosition) => {
     layout.normalizeViewportState({
