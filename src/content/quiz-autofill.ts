@@ -18,6 +18,36 @@ export interface QuizDomSnapshot {
   dropdowns: DropdownSnapshot[];
 }
 
+export interface ChoiceAutoFillPlan {
+  kind: "choices";
+  mode: "single_choice" | "multiple_choice";
+  targets: HTMLInputElement[];
+}
+
+export interface DropdownAutoFillPlan {
+  kind: "dropdown";
+  dropdowns: Array<{
+    dropdown: DropdownSnapshot;
+    responseLine: string;
+  }>;
+}
+
+export interface TextAutoFillPlan {
+  kind: "text";
+  target: TextEntryTarget;
+  value: string;
+}
+
+export interface EmptyAutoFillPlan {
+  kind: "none";
+}
+
+export type AutoFillPlan =
+  | ChoiceAutoFillPlan
+  | DropdownAutoFillPlan
+  | TextAutoFillPlan
+  | EmptyAutoFillPlan;
+
 export function buildAutoFillPrompt(snapshot: QuizDomSnapshot): string {
   const dropdownContext =
     snapshot.kind === "dropdown" && snapshot.dropdowns.length > 0
@@ -52,7 +82,13 @@ Begin.`;
 }
 
 function isNoQuestionResponse(response: string): boolean {
-  return response.trim().toLowerCase() === "no question found";
+  return (
+    response
+      .trim()
+      .toLowerCase()
+      .replace(/[.!]+$/, "")
+      .trim() === "no question found"
+  );
 }
 
 function isOverlayElement(element: Element | null): boolean {
@@ -294,11 +330,8 @@ function parseSingleChoiceAnswer(response: string): number {
 }
 
 function parseMultipleChoiceAnswer(response: string): number[] {
-  const numbers = response
-    .split(/\r?\n/)
-    .map((line) => line.trim().match(/^\d+$/)?.[0] || line.match(/\d+/)?.[0])
-    .filter((value): value is string => Boolean(value))
-    .map((value) => Number.parseInt(value, 10))
+  const numbers = Array.from(response.matchAll(/\d+/g))
+    .map((match) => Number.parseInt(match[0], 10))
     .filter((value) => Number.isInteger(value) && value > 0);
 
   const uniqueNumbers = Array.from(new Set(numbers));
@@ -401,7 +434,7 @@ function selectDropdownOption(
   dropdown.target.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-function triggerChoiceInput(input: HTMLInputElement): void {
+export function triggerChoiceInput(input: HTMLInputElement): void {
   input.focus();
   input.click();
   input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -442,47 +475,49 @@ function setEditableValue(target: TextEntryTarget, value: string): void {
   target.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-export function applyAutoFill(
+export function buildAutoFillPlan(
   snapshot: QuizDomSnapshot,
   response: string
-): void {
+): AutoFillPlan {
   if (isNoQuestionResponse(response)) {
-    return;
+    return { kind: "none" };
   }
 
   if (snapshot.kind === "dropdown") {
     const lines = parseDropdownAnswerLines(response);
-
-    snapshot.dropdowns.forEach((dropdown, index) => {
+    const dropdowns = snapshot.dropdowns.map((dropdown, index) => {
       const line = lines[index] || lines[lines.length - 1];
       if (!line) {
         throw new Error("AI did not return enough dropdown selections.");
       }
-      selectDropdownOption(dropdown, line);
+      return { dropdown, responseLine: line };
     });
 
-    return;
+    return { kind: "dropdown", dropdowns };
   }
 
   if (snapshot.kind === "single_choice") {
     const selectedNumber = parseSingleChoiceAnswer(response);
     validateSingleChoiceAnswer(snapshot, selectedNumber);
-    triggerChoiceInput(snapshot.choiceTargets[selectedNumber - 1]);
-    return;
+
+    return {
+      kind: "choices",
+      mode: "single_choice",
+      targets: [snapshot.choiceTargets[selectedNumber - 1]]
+    };
   }
 
   if (snapshot.kind === "multiple_choice") {
     const selectedNumbers = parseMultipleChoiceAnswer(response);
     validateMultipleChoiceAnswers(snapshot, selectedNumbers);
-    const selectedIndexes = new Set(selectedNumbers.map((value) => value - 1));
 
-    snapshot.choiceTargets.forEach((target, index) => {
-      const shouldBeChecked = selectedIndexes.has(index);
-      if (target.checked !== shouldBeChecked) {
-        triggerChoiceInput(target);
-      }
-    });
-    return;
+    return {
+      kind: "choices",
+      mode: "multiple_choice",
+      targets: selectedNumbers.map(
+        (selectedNumber) => snapshot.choiceTargets[selectedNumber - 1]
+      )
+    };
   }
 
   const textTarget = pickClosestTextTarget(snapshot.textTargets);
@@ -490,5 +525,33 @@ export function applyAutoFill(
     throw new Error("No visible input box was found for the answer.");
   }
 
-  setEditableValue(textTarget, response.trim());
+  return {
+    kind: "text",
+    target: textTarget,
+    value: response.trim()
+  };
+}
+
+export function applyAutoFillPlan(plan: AutoFillPlan): void {
+  if (plan.kind === "none") {
+    return;
+  }
+
+  if (plan.kind === "dropdown") {
+    for (const { dropdown, responseLine } of plan.dropdowns) {
+      selectDropdownOption(dropdown, responseLine);
+    }
+    return;
+  }
+
+  if (plan.kind === "text") {
+    setEditableValue(plan.target, plan.value);
+    return;
+  }
+
+  for (const target of plan.targets) {
+    if (!target.checked) {
+      triggerChoiceInput(target);
+    }
+  }
 }

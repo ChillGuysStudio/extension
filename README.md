@@ -35,7 +35,7 @@ What it also is: a full AI chat assistant injected into every page as a draggabl
 
 - A persistent AI chat with full markdown and LaTeX rendering
 - One-shortcut quiz screenshot answer
-- One-shortcut quiz DOM autofill (radio, checkbox, dropdown, text)
+- One-shortcut quiz DOM autofill with hover-to-select choices
 - Image analysis via drag-and-drop or attachment
 - 7 AI providers switchable at any time without leaving the page
 
@@ -98,7 +98,7 @@ Captures the visible page with `html2canvas` and sends it to the AI. Returns the
 
 **DOM autofill mode** (`Alt+Shift+Q`)
 
-Reads the page HTML directly instead of screenshotting. Detects every interactive input — radio buttons, checkboxes, `<select>` dropdowns, and text inputs — and fills in the correct answers automatically. Works on structured quiz platforms where the DOM contains the question text and answer options.
+Detects every interactive input from the page HTML — radio buttons, checkboxes, `<select>` dropdowns, and text inputs — and sends that input context along with the screenshot. For radio buttons and checkboxes, the answer is applied only when you hover the matching option: single-choice selects on the first correct hover, while multiple-choice selects each correct option as you hover it. Dropdowns and text inputs fill immediately. Works on structured quiz platforms where the DOM contains the question text and answer options.
 
 ### Image Analysis
 
@@ -112,7 +112,7 @@ Reads the page HTML directly instead of screenshotting. Detects every interactiv
 | ------------- | ------------------------------------------------- |
 | `Alt+C`       | Toggle the floating chat window open / closed     |
 | `Alt+Q`       | Screenshot the current page and get a quiz answer |
-| `Alt+Shift+Q` | Read the DOM and autofill all quiz inputs         |
+| `Alt+Shift+Q` | Read the DOM and prepare hover-to-select answers  |
 
 Shortcuts use `Alt` only — no `Ctrl` or `⌘` — to avoid clashing with browser and OS bindings. They fire on `keydown` and are suppressed when focus is inside a text field.
 
@@ -138,7 +138,7 @@ Shortcuts use `Alt` only — no `Ctrl` or `⌘` — to avoid clashing with brows
 ```
 Alt + C              → Toggle chat
 Alt + Q              → Screenshot quiz answer
-Alt + Shift + Q      → DOM quiz autofill
+Alt + Shift + Q      → DOM quiz answer, hover choices to apply
 /reset  (in chat)    → Clear conversation history
 ```
 
@@ -167,6 +167,7 @@ src/
 │   ├── quiz.ts           # Screenshot quiz — prompt + controller
 │   ├── quiz-autofill.ts  # DOM autofill — input detection + filling
 │   ├── quiz-autofill-controller.ts
+│   ├── quiz-hover.ts     # Hover-to-select behavior for choice answers
 │   ├── quiz-shared.ts    # Shared quiz request logic
 │   ├── requests.ts       # Provider request builders
 │   ├── settings.ts       # Settings panel + storage
